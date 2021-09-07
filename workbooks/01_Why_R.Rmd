@@ -32,6 +32,7 @@ knitr::opts_chunk$set(echo = FALSE)
   + `nlmixr`: nonlinear mixed effects modelling in R 
   + `PKPDsim` ODE solver/concentration time curve simulations
   + `mrgsolve` ODE solver/concentration time curve simulations 
+  + `mapbayr` MAP Bayesian estimation of PK parameters
   + `vpc` visual predictive checks of NLMEM/NONMEM results
   + `PKNCA` pharmacokinetic non-compartmental analysis
   + And many, many more tools! Check out more here: https://cran.r-project.org/web/views/Pharmacokinetics.html
