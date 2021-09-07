@@ -1,0 +1,1087 @@
+---
+title: '8) Combining and Reshaping Data'
+author: "Jasmine Hughes"
+date: "9/17/2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+
+```{r}
+# If you haven't yet installed dplyr, install it now!
+# install.packages('dplyr')
+library(dplyr)
+
+# Lets also load the medals data set:
+medals <- read.csv(file.path("..", "data/all_medalists.csv")) 
+
+# This data set is from here: 
+# https://www.theguardian.com/sport/datablog/2012/jun/25/olympic-medal-winner-list-data
+View(medals)
+head(medals)
+head(gap)
+```
+
+# Why Graph?
+
+* Communicate your results to others.
+    + Involved, fancy
+    + May invest time in making it eye-catching, communicative
+    + Seen by many people (colleagues, publications)
+* Check calculations, assumptions, understand your data prior to analysis
+    + Quick and dirty
+    + Target audience is you
+    + Get a quick answer to a question you have about the data, see if anything 
+      "smells wrong" about the data.
+
+**Visualize your data often and early.**
+A couple "quick and dirty" graphs can save you a lot of time.
+
+Graphing is often iterative, and you may make many graphs of the same data in an 
+analysis:
+
+* The first graph you make to check the data
+* The graph you make that helps you get to that "Aha!" moment
+* The graph you make that helps you communicate the main finding to others
+
+# How Graph?
+
+3 main facilities for producing graphics in R: 
+
+* **base**, 
+* **`ggplot2`**
+* **`lattice`**
+
+When picking a graphing tool, consider:
+
+* need for speed, vs need for polished final graph
+* size of data (ex: very big data sets and many points, vs <5000 points)
+* specialty graphs (beeswarm, ridge plots) versus basic graph types (histogram)
+* plays nicely with other "specialty" tools you are using.
+
+# The Data
+
+* All Summer Olympic medalists from 1896-2008
+* Variables include name, gender, country, country code (`NOC`), sporting event, 
+  and type of medal won
+
+First, we'll use `dplyr` and `tidyr` to count the medals of each type won, for 
+each country and each year.
+
+```{r}
+head(medals)
+# dplyr and tidyr refresher
+medal_counts <- medals %>%
+  group_by(Medal, Year, NOC) %>%
+  summarise(count = n())
+head(medal_counts)
+
+
+```
+
+This table is in tidy format. Wide (untidy) format can be useful for plotting in *base* plot (more on this later)
+
+```{r}
+medal_counts_wide <- medal_counts %>% 
+  spread(key = Medal, value = count) %>%
+  ungroup() %>%
+  mutate(Bronze = ifelse(is.na(Bronze), 0, Bronze)) %>%
+  mutate(Silver = ifelse(is.na(Silver), 0, Silver)) %>%
+  mutate(Gold = ifelse(is.na(Gold), 0, Gold))
+head(medal_counts_wide)
+```
+
+Finally, let's subset the data to gold medal counts for the US, for easier plotting.
+
+```{r}
+usa_gold_medals <-  medal_counts %>%
+  filter(Medal == "Gold") %>%
+  filter(NOC == "USA")
+```
+
+# Base graphics
+
+We saw a couple examples of graphing in base R previously: the histogram and the boxplot.
+
+```{r}
+# Review:
+pt_data <- data.frame(
+  MRN = rep(c(97, 107, 402),2),
+  measurement_time = factor(
+    c(rep("Pre-Intervention", 3), rep("Post-Intervention", 3)),
+    levels = c("Pre-Intervention", "Post-Intervention")
+  ),
+  measurement_value = c(50, 65, 47, 104, 82, 91)
+)
+
+boxplot(measurement_value ~ measurement_time, data = pt_data)
+
+hist(pt_data$measurement_value)
+```
+
+Base R is not super consistent about the graphing API (application programming 
+interface - how you interact with a pieces of software). 
+
+There's more about working with Base R plots in the Appendix of this work sheet,
+but for now we will look at one use case you might find helpful.
+
+## Object-oriented plots
+
+Remember how `summary()` returns different answers depending on if the column is
+a factor, a character or a number? Base R can be "smart" about your data type 
+too.
+
+* Base graphics often recognizes the object type and will implement specific 
+  plot methods
+* lattice and ggplot2 generally **don't** exhibit this sort of behavior
+
+```{r, fig.cap=" "}
+# Calls plotting method for class of the dataset ("data.frame")
+plot(medal_counts_wide %>% select(-NOC))
+
+
+# Calls plotting method for class of medal_lm object ("lm"), 
+# print first two plots only
+medal_lm <- lm(Gold ~ Bronze + Silver, data = medal_counts_wide)
+summary(medal_lm)
+
+plot(medal_lm, which=1:5)
+```
+
+Can you tell R was made by statisticians?
+
+# Pros/cons of base graphics, ggplot2, and lattice
+
+Base graphics is
+
+a) good for exploratory data analysis and sanity checks
+
+b) a handy tool to use in tandem with `lm` and a few other 'base R' stats tools
+
+c) inconsistent in syntax across functions
+
+d) defaults plotting parameters are ugly and it can be difficult to customize
+
+e) that said, one can do essentially anything in base graphics with some work
+
+`ggplot2` is
+
+a) generally more elegant
+
+b) more syntactically logical (and therefore simpler, once you learn it)
+
+c) better at grouping, handling multiple variables
+
+d) has a well-developed ecosystem of packages that work well together, great for 
+   specialized graph types
+
+e) the "quick and dirty" graph is often a reasonably aesthetically pleasing 
+   starting spot
+
+`lattice` is
+
+a) faster than ggplot2 (though only noticeable over many and large plots)
+
+b) may be simpler than ggplot (although, fewer resources online for learning)
+
+c) able to do 3d graphs
+
+d) used by many specialty packages (bioinformatics, cytometry)
+
+We'll focus on ggplot2 as it is very powerful, very widely-used and allows one 
+to produce very nice-looking graphics without a lot of coding.
+
+# ggplot2
+
+The general call for `ggplot2` graphics looks something like this:
+
+```{r, eval=FALSE}
+# NOT run
+
+ggplot(data = ) +
+  geom_xxxx(aes(x = ,y = , [options]))) + 
+  geom_xxxx(aes(x = ,y = , [options]))) + 
+  ... + 
+  ... + 
+  ...
+```
+
+Note that `ggplot2` graphs in layers in a *continuing call* (hence the endless 
++...+...+...), which really makes the extra layer part of the call.
+
+**common mistake!** Careful: `+` is not the same as `%>%` (common typo!) We are 
+adding layers together, not piping the input of one function into another.
+
+You can see the layering effect by comparing the same graph with different 
+colors for each layer:
+
+```{r, fig.cap=" ", warning=FALSE}
+p <- ggplot(data = medal_counts_wide) +
+  aes(x = Year, y = Gold) +                   
+  geom_point(color = "gold")
+p
+p + 
+  geom_point(aes(x = Year, y = Silver), color = "gray") + 
+  ylab("Medals")
+```
+
+# Grammar of Graphics
+
+`ggplot2` syntax is very different from base graphics and lattice. It's built on 
+the **grammar of graphics**. The basic idea is that the visualization of all 
+data requires four items:
+
+1) A dataset and set of mappings from variables to **aesthetics** 
+   (ex: year -> x, medal count ->y). In ggplot, use `aes()`
+
+2) A **geometry** (`geom_xxx`), which describes how the aesthetics data is 
+   transformed into the graphical representation in terms of **kind** 
+   (or **shape**).
+
+3) One **scale** for each aesthetic mapping used. Scales describe how the 
+   aesthetics data is transformed into the graphical representation in terms of 
+   **degree**. (What does a value of `5` or `10` when determining what each 
+   pixel in a graph looks like?). 
+
+   * `scale_color_manual` and family for mapping values to colors/linetypes/
+     circle 
+     types (displayed in a figure legend)
+   * data transofmrations (log, etc), described using gridlines and axes for
+     position scales
+
+4) A coordinate system, affects all position variables (cartesian, 
+   logarithmic/semi-log, polar)
+
+
+*Aside*: "The Grammar of Graphics" is a book, if you're interested in data 
+visualization theory!
+
+
+
+
+`ggplot2` allows the user to manipulate all four of these items.
+
+Each layer is built up of the following components:
+
+1) Aesthetic mapping (and data) (`ggplot(aes(x = Species, y = Sepal.Length))`)
+
+2) A statistical transformation. (`geom_bar(stat = 'count')`), 
+
+3) Geometric object (`geom_point()`, `geom_bar()`)
+
+4) A position adjustment (ex: how to handle collision between points)
+
+
+```{r, warning = FALSE, message = FALSE, fig.cap = "", fig.height=2.5}
+ggplot(medal_counts_wide, aes(x = Year, y = Gold)) + 
+  geom_point() +
+  ggtitle("Gold Medal Counts")
+
+ggplot(usa_gold_medals, aes(x = Year, y = count)) + 
+  geom_line() +
+  ggtitle("USA Gold Medals")
+
+# Boxplots
+ggplot(medal_counts_wide, aes(x = factor(Year), y = Gold)) +
+  geom_boxplot() + 
+  ggtitle("Gold Medal Counts")
+
+# Histogram
+ggplot(medal_counts_wide, aes(x = Gold)) + 
+  geom_histogram() +
+  ggtitle("Gold Medal Counts")
+
+# Density plot
+ggplot(medal_counts_wide, aes(x = Gold)) + 
+  geom_density() +
+  ggtitle("Gold Medal Counts")
+
+# Bar chart
+ggplot(usa_gold_medals, aes(x = Year, y = count)) + 
+  geom_bar(stat = "identity")
+```
+
+* Consistent API call
+* Change out one `geom` for another to change the "type"
+
+# `ggplot2` and tidy data
+
+`ggplot2` plays nice with `dplyr` and pipes. If you want to manipulate your 
+data specifically for one plot but not save the new dataset, you can call 
+your `dplyr` chain and pipe it directly into a `ggplot` call.
+
+```{r, fig.cap = "", fig.show = "hold"}
+# This combines the subsetting and plotting into one step
+medal_counts %>%
+  filter(Medal == "Gold") %>%
+  filter(NOC == "USA") %>%
+  ggplot(aes(x = Year, y = count)) + 
+  geom_line()
+```
+
+# An overview of syntax for various `ggplot2` plots
+
+## densities:
+
+```{r, fig.cap=" ", warning=FALSE, fig.show = "hold"}
+
+ggplot(data = usa_gold_medals, aes(x = count)) + 
+  geom_density() 
+```
+
+## X-Y scatter plots:
+
+```{r, fig.cap=" ", warning=FALSE, fig.show = "hold"}
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) + 
+  geom_point() 
+
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) + 
+  geom_jitter() 
+```
+
+## X-Y line plots: 
+
+```{r, fig.cap=" ", warning=FALSE, fig.show = "hold"}
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) + 
+  geom_line() # ggplot2
+```
+
+## bar plots:
+
+```{r, fig.cap=" ", warning=FALSE, message=FALSE, fig.show = "hold"}
+
+median_gold_medals <- medal_counts %>%
+  filter(Medal == "Gold") %>%
+  # mutate(count = as.double(count)) %>%
+  group_by(NOC) %>%
+  summarise(med = median(count))
+
+head(median_gold_medals)
+
+
+median_gold_medals %>%
+  head() %>%
+  ggplot() + 
+  aes(x= NOC, y = med) +
+  geom_bar(stat = 'identity')
+
+```
+
+## boxplots:
+
+```{r, fig.cap=" ", warning=FALSE, fig.show = "hold"}
+# Notice that here, you must explicitly convert numeric years to factors
+ggplot(data = medal_counts_wide, aes(x = factor(Year), y = Gold)) +
+  geom_boxplot() # ggplot2
+```
+
+## "trellis" plots:
+```{r, fig.cap=" ", warning=FALSE, fig.show = "hold"}
+# Subset the data to North America countries for easier viewing
+northern_hem <- medal_counts_wide %>%
+  filter(NOC %in% c("USA", "CAN", "CUB", "MEX"))
+
+ggplot(data = northern_hem, aes(x = Year, y = Gold)) + 
+  geom_point() +
+  facet_wrap(~NOC, scales = 'free') 
+
+# Facet wrap can be added as a layer to any type of geom
+```
+
+
+## Contour/tile/image/level plots:
+
+```{r, fig.cap=" ", warning=FALSE, fig.show = "hold"}
+data(faithfuld)
+
+#faithfuld is a data transformation of faithful, which is a 'built in' data set 
+# describing the time between eruptions and the duration of the eruption for the 
+# Old Faithful geyser in Yellowstone National Park, Wyoming, USA.
+# - eruptions: eruption time in mins
+# - waiting: waiting time to next eruption in mins
+# - density: 2d density estimate
+
+head(faithfuld)
+
+ggplot(data = faithfuld) +
+  aes(x = eruptions, y = waiting) +
+  geom_raster(aes(fill = density)) 
+
+
+ggplot(data = faithfuld) +
+  aes(x = eruptions, y = waiting, fill = density) +
+  geom_contour(aes(z = density)) 
+```
+
+## Heatmaps
+
+```{r}
+df <- expand.grid(x = 0:5, y = 0:5)
+df$z <- sample(10:100, nrow(df), replace = TRUE) * sqrt(df$x) + df$y * 10
+
+df %>%
+  ggplot() +
+  aes(x = x, y = y, fill = z) +
+  geom_tile() +
+  coord_equal()
+
+```
+# aes()
+
+## Anatomy of `aes()`
+
+So far, we've been mostly defining x and y variables in aes....
+
+```{r, eval=FALSE}
+# NOT run
+ggplot(data = , aes(x = , y = , color = , linetype = , shape = , size = ))
+```
+
+These four aesthetic parameters (`color`, `linetype`, `shape`, `size`) can be 
+used to show variation in *kind* (categories/factors) and variation in *degree* 
+(numeric (ex: fill)).
+
+I want to:
+
+* Change the color of all the points in my x-y scatter plot to blue: 
+
+  + supply 'color = ' OUTSIDE the `aes()` argument
+
+* Change the color of all the points in my x-y scatter plot based on a variable 
+  in my data set: 
+  
+  +  supply 'color = ' INSIDE the `aes()` argument
+
+Parameters passed into `aes` should be *columns* in your dataset. 
+
+Parameters passed to `geom_xxx` outside of `aes` should *not* be related to your 
+data set -- they apply to the whole figure.
+
+```{r, fig.cap=" ", warning=FALSE}
+usa_all_medals <- medal_counts %>%
+  filter(NOC == "USA")
+
+head(usa_all_medals)
+
+ggplot(data = usa_all_medals) +
+  aes(
+    x = Year, 
+    y = count, 
+    color = Medal, 
+    linetype = Medal
+  ) +                 # color, linetype are different for each Medal type
+  geom_line(size = 2) # size applies to ALL lines
+```
+Long data is usually easier to work with in ggplot!
+
+Note what happens when we specify the color parameter outside of the aesthetic 
+operator. `ggplot2` views these specifications as invalid graphical parameters.
+
+```{r, fig.cap=" ", warning=FALSE, error = TRUE}
+ggplot(data = usa_all_medals, aes(x = Year, y = count)) +
+  geom_point(color = Medal)
+ggplot(data = usa_all_medals, aes(x = Year, y = count)) +
+  geom_point(color = "Medal")
+ggplot(data = usa_all_medals, aes(x = Year, y = count)) +
+  geom_point(color = "red")
+```
+
+
+# Changing options in ggplot2
+
+`ggplot` handles options in additional layers.
+
+### Labels
+
+```{r, fig.cap=" ", warning=FALSE, fig.show = "hold"}
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) + geom_point() +
+  xlab(label = "Year") +
+  ylab(label = "Number of Gold Medals Won") +
+  ggtitle(label = "Cool Graph") # ggplot2
+```
+
+### Axis and point scales
+
+Control options at a "global" level by not specifying within `aes`
+
+```{r, fig.cap=" ", warning=FALSE, fig.show = "hold"}
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) +
+  geom_point() 
+
+# Now with bigger points
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) +
+  geom_point(size=3) 
+
+# Now with tiny points
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) +
+  geom_point(size=0.1) 
+```
+
+### Colors
+```{r, fig.cap=" ", warning=FALSE, fig.show = "hold"}
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) +
+  geom_point(color = colors()[11]) # ggplot2
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) +
+  geom_point(color = "#266F36") # ggplot2
+```
+The difference between 'color' and 'fill' can be confusing; 'color' refers to 
+points and lines, while 'fill' refers to rectangles.
+
+```{r}
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) +
+  geom_bar(
+    stat = 'identity', 
+    color = "navyblue",
+    fill = 'lightpink'
+  ) # ggplot2
+```
+
+### Point Styles and Widths
+
+```{r, fig.cap=" ", warning=FALSE, fig.show = "hold"}
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) +
+  geom_point(shape = 3) 
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) +
+  geom_point(shape = "w") 
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) +
+  geom_point(shape = "$", size=5) 
+```
+
+### Line Styles and Widths
+
+```{r, fig.cap=" ", warning=FALSE, fig.show = "hold"}
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) +
+  geom_line(linetype = 1) 
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) +
+  geom_line(linetype = 'dashed')
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) +
+  geom_line(linetype = 5, size = 2, color = 'blue') 
+```
+
+# Using aesthetics to highlight features
+
+Differences in kind
+
+```{r, fig.cap=" ", warning=FALSE, fig.show = "hold"}
+ggplot(data = northern_hem, aes(x = Year, y = Gold)) +
+  geom_point(aes(shape = NOC, color = NOC))
+
+# same as above but specifying the colors
+ggplot(data = northern_hem, aes(x = Year, y = Gold)) +
+  geom_point(aes(shape = NOC, color = NOC)) +
+  scale_color_manual(values = c('darkblue', 'orangered', 'yellow4', 'pink3'))
+
+
+# same as above but specifying the colors and the shape
+ggplot(data = northern_hem, aes(x = Year, y = Gold)) +
+  geom_point(aes(shape = NOC, color = NOC)) +
+  scale_color_manual(values = c('darkblue', 'orangered', 'yellow4', 'pink3')) +
+  scale_shape_manual(values = c(5, 6, 7, 8))
+
+
+  
+```
+See named colors here: 
+http://sape.inf.usi.ch/sites/default/files/ggplot2-colour-names.png
+
+You can also supply color hexes. 
+
+# Fitted lines and curves with `ggplot2`
+
+```{r, fig.cap=" ", warning=FALSE, message=FALSE}
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) + 
+  geom_point()
+```
+
+
+```{r fig.cap=" ", warning=FALSE, message=FALSE}
+# Add linear model (lm) smoother
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) + 
+  geom_point() +
+  geom_smooth(method = "lm", color = "orange") #by default, adds standard error
+
+```
+
+```{r fig.cap=" ", warning=FALSE, message=FALSE}
+
+# Add a local linear (loess) smoother for each medal
+ggplot(data = usa_all_medals, aes(x = Year, y = count)) +
+  geom_point(aes(color = Medal)) +
+  geom_smooth(aes(color = Medal), method = "loess", se = FALSE)
+
+
+```
+
+# Manually defining lines
+
+Sometimes you might want to add the results of a regression you did to a graph, or indicate particular values on your graph. The family of functions `geom_abline`, `geom_hline` and `geom_vline` are useful for this.
+
+```{r}
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) + 
+  geom_point() +
+  geom_smooth(method = "loess", se = FALSE) +
+  geom_hline(
+    yintercept = 100, 
+    color = "purple", 
+    linetype = "dashed"
+  ) +
+  annotate(
+    geom = "text", 
+    label = "target medal count", 
+    x = 1893, 
+    y = 100, 
+    vjust = -1, 
+    hjust = 0, 
+    color = "purple"
+  )
+```
+
+```{r}
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) + 
+  geom_point() +
+  geom_smooth(
+    method = "loess", 
+    se = FALSE
+  ) +
+  geom_vline(
+    xintercept = 1950, 
+    color = "purple", 
+    linetype = "dashed"
+  ) +
+  annotate(
+    geom = "text", 
+    label = "start of new\nolympic athlete program", 
+    x = 1950, 
+    y = 140, 
+    vjust = -0.4, 
+    hjust = 0.5, 
+    color = "purple", 
+    angle = 90
+  )
+```
+
+```{r}
+ggplot(data = usa_gold_medals, aes(x = Year, y = count)) + 
+  geom_point() +
+  geom_smooth(
+    method = "loess", 
+    se = FALSE
+  ) +
+  geom_abline(
+    slope = 2.1, 
+    intercept = -4000, 
+    color = "purple"
+  ) +
+  annotate(
+    geom = "text", 
+    label = "My Comptitor's Model", 
+    x = 1960, 
+    y = 160, 
+    vjust = -0.4, 
+    hjust = 0.5, 
+    color = "purple"
+  ) +
+  annotate(
+    geom = "text", 
+    label = "My Model", 
+    x = 1983, 
+    y = 120, 
+    vjust = -0.4, 
+    hjust = 0.5, 
+    color = "blue"
+  ) 
+```
+
+# Themes
+
+So far our plots are perhaps prettier than Base R plots, but they're still kinda 
+ugly...
+
+Customizing the way the non-data component of your graph will usually require 
+manipulating the `theme()` layer.
+
+The (now familiar) grey background with white lines is part of the default 
+ggplot theme, `theme_grey()`. ggplot2 comes with several built-in themes that 
+can be easily added to a plot to change its appearance.
+
+```{r default_themes}
+# grey
+usa_all_medals %>% 
+  ggplot(aes(x = Year, y = count)) +
+  geom_point(aes(color = Medal)) +
+  geom_smooth(aes(color = Medal), method = "lm", se = FALSE) +
+  theme_grey()
+
+```
+
+
+```{r fig.cap=" ", warning=FALSE, message=FALSE}
+
+# minimal
+usa_all_medals %>% 
+  ggplot(aes(x = Year, y = count)) +
+  geom_point(aes(color = Medal)) +
+  geom_smooth(aes(color = Medal), method = "lm", se = FALSE) +
+  theme_minimal()
+
+```
+
+
+```{r fig.cap=" ", warning=FALSE, message=FALSE}
+
+# black and white
+usa_all_medals %>% 
+  ggplot(aes(x = Year, y = count)) +
+  geom_point(aes(color = Medal)) +
+  geom_smooth(aes(color = Medal), method = "lm", se = FALSE) +
+  theme_bw()
+
+```
+
+Academic figures are often very minimalist... to fit that scheme try:
+
+```{r fig.cap=" ", warning=FALSE, message=FALSE}
+
+# classic
+usa_all_medals %>% 
+  ggplot(aes(x = Year, y = count)) +
+  geom_point(aes(color = Medal)) +
+  geom_smooth(aes(color = Medal), method = "lm", se = FALSE) +
+  theme_classic() +
+  #For this theme in particular, I like to resposition the axis to zero:
+  scale_y_continuous(expand = c(0, 0, 0.1, 0.1))
+
+```
+
+
+```{r fig.cap=" ", warning=FALSE, message=FALSE}
+
+# dark
+usa_all_medals %>% 
+  ggplot(aes(x = Year, y = count)) +
+  geom_point(aes(color = Medal)) +
+  geom_smooth(aes(color = Medal), method = "lm", se = FALSE) +
+  theme_dark()
+
+```
+
+However, if you don't like these default themes, you can build your own. 
+
+```{r}
+usa_all_medals %>% 
+  ggplot(aes(x = Year, y = count)) +
+  geom_point(aes(color = Medal)) + 
+  scale_y_continuous(expand = c(0, 0, 0.1, 0.1))+
+  geom_smooth(aes(color = Medal), method = "lm", se = FALSE) +
+  ylab("Number of medals") +
+  theme(
+    legend.position = 'top',
+    # most theme elements are specified as a line element, a rect element,
+    # a text element, or a blank element to remove it entirely
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    
+    plot.background = element_rect(fill = '#fcfbed'),
+    panel.background = element_rect(fill = '#fcfbed'),
+    
+    axis.line = element_line(color = '#633c01'),
+    
+    axis.text = element_text(size = 14),
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 14), 
+    axis.title = element_text(size = 16),
+    
+    panel.grid = element_line(color = '#8a7453'),
+    panel.grid.major = element_line(linetype = 'dashed'),
+    panel.grid.minor = element_blank()
+  ) +
+  scale_color_manual(values = c('orangered', 'darkturquoise', 'navyblue'))
+
+```
+You can also download ggplot theme libraries. For example, the package 
+`ggthemes` has everything you need to copycat the Economist graphing style: 
+https://www.ggplot2-exts.org/ggthemes.html 
+
+# The ordering of layers matters!
+
+```{r layeroverride}
+
+# Compare boxplot first, then jitter
+iris %>%
+  ggplot() +
+  aes(x = Species, y = Sepal.Length) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.3)  # jitter: point with position dodging
+
+# versus jitter first, then boxplot
+iris %>%
+  ggplot() +
+  aes(x = Species, y = Sepal.Length) +
+  geom_jitter(width = 0.3) +
+  geom_boxplot(outlier.shape = NA)
+
+
+```
+
+# Combining Multiple Plots
+
+There are many packages you can explore to 
+
+## GridExtra
+
+* `ggplot2` graphs can be combined using the *`grid.arrange()`* function in the **`gridExtra`** package
+
+```{r, warning=FALSE, fig.cap=" ", fig.width = 8, fig.height = 5}
+# Initialize gridExtra library
+library(gridExtra)
+
+# Create 3 plots to combine in a table
+plot1 <- ggplot(data = medal_counts_wide, aes(x = Year, y = Gold)) +
+  geom_point(color = "gold") +
+  geom_point(aes(x = Year, y = Silver), color = "gray") +
+  geom_point(aes(x = Year, y = Bronze), color = "brown") +
+  ylab("Medals")
+plot2 <- ggplot(data = usa_all_medals, aes(x = Year, y = count)) +
+  geom_line(aes(color = Medal)) + 
+  theme(legend.position = 'left')
+plot3 <- ggplot(data = northern_hem, aes(x = Year, y = Gold)) +
+  geom_line(aes(linetype = NOC)) + 
+  theme(legend.position = 'right')
+
+
+# Call grid.arrange
+grid.arrange(plot1, plot2, plot3, nrow=3, ncol = 1)
+grid.arrange(plot1 + labs(tags = "A"), 
+             plot2 + theme(legend.position = 'none') + labs(tags = "B"), 
+             plot3 + theme(legend.position = 'none') + labs(tags = "C"), 
+             layout_matrix = rbind(c(1,1), c(2, 3)))
+```
+# Exporting
+
+Two basic image types:
+
+### **Raster/Bitmap** (.png, .jpeg)
+
+Every pixel of a plot contains its own separate coding; not so great if you want 
+to resize the image
+
+```{r, eval=FALSE}
+jpeg(filename = "example.jpg", width=, height=)
+plot(x,y)
+dev.off()
+```
+
+### **Vector** (.pdf, .ps)
+
+Every element of a plot is encoded with a function that gives its coding 
+conditional on several factors; great for resizing
+
+```{r, eval=FALSE}
+# NOT run
+pdf(file = "example.pdf", width=, height=)
+plot(x,y)
+dev.off()
+```
+
+### Exporting with `ggplot`
+
+```{r, eval=FALSE}
+# NOT run
+
+# Assume we saved our plot is an object called example.plot
+
+ggsave(
+  filename = "example.pdf", 
+  plot = example.plot, 
+  width = 7,
+  height = 7
+)
+```
+
+### Exporting via plots panel
+
+Great for "quick" graphs, easy sharing. Not great for automatically generating 
+graphs, reproducibly generating a graph.
+
+# Inspiration
+
+Some data is always presented the same way across studies (ex: DV vs IPRED will 
+always include a scatter plot...). But sometimes you might find yourself unsure 
+which `geom` will best communicate your data. The GG Gallery breaks down 
+different graph types based on the types of data they communicate, and comes 
+with sample code: https://www.r-graph-gallery.com/
+
+# Extra Resources
+
+`dplyr` and `tidyr` have many more functions to help you wrangle and manipulate 
+your data. See the  [Data Wrangling Cheat Sheet](https://github.com/rstudio/cheatsheets/blob/master/data-transformation.pdf) 
+for more.
+
+# Breakout Questions
+
+These questions ask you to work with the gapminder dataset.
+
+### Basics
+
+1) Plot a histogram of life expectancy. 
+
+```{r}
+
+
+```
+
+2) Plot the life expectancy against gdpPercap. 
+
+```{r}
+
+```
+
+3) Clean up your scatterplot with a title and axis labels. Output it as a PDF 
+and see if you'd be comfortable with including it in a report/paper.
+
+```{r}
+
+
+```
+
+4) Make a boxplot of life expectancy conditional on year.
+
+```{r}
+
+
+```
+
+### Using the ideas
+
+5) Create a trellis plot of life expectancy by gdpPercap scatterplots, one 
+subplot per year. Use a 3x4 layout of panels in the plot.
+
+```{r}
+
+
+```
+
+6) Plot life expectancy versus gdpPercap. Now plot so that different continents 
+are in different colors. Use `scale_x_continuous()` to set the x-axis limits to 
+be in the range from 100 to 50000.
+
+```{r}
+
+```
+
+7) Figure out how to use the log-scale for gdpPercap, without manually calculating the log values.
+
+```{r}
+
+```
+
+### Advanced
+
+8) Create a "trellis" plot where, for a given year, each panel uses a) hollow circles to plot lifeExp as a function of log(gdpPercap), and b) a red loess smoother without standard errors to plot the trend. Turn off the grey background. Figure out how to use partially-transparent points to reduce the effect of the overplotting of points.
+
+```{r}
+
+
+```
+
+9) Building on your graph in Question 8, change at least two different properties in the `theme()` layer to customize the graph to your liking.
+
+```{r}
+
+```
+
+# Appendix: More about Base R graphs!
+
+## Basic Base R plots
+
+The general call for base plot looks something like this:
+
+```{r, eval=FALSE}
+plot(x = , y = , ...)
+```
+Additional parameters can be passed in to customize the plot:
+
+* type: scatterplot? lines? etc
+* main: a title
+* xlab, ylab: x-axis and y-axis labels
+* col: color, either a string with the color name or a vector of color names for each point
+
+More layers can be added to the plot with additional calls to `lines`, `points`, `text`, etc.
+
+```{r, fig.cap = ""}
+plot(medal_counts_wide$Year, medal_counts_wide$Gold) # Basic
+plot(
+  medal_counts_wide$Year, 
+  medal_counts_wide$Gold, 
+  #type = "l",
+  main = "USA Gold Medals",
+  xlab = "Year", 
+  ylab = "Count"
+) # with updated parameters
+```
+
+## Other plot types in base graphics
+
+These are just a few other types of plots you can make in base graphics.
+
+```{r, fig.cap = ""}
+boxplot(Gold ~ Year, data = medal_counts_wide)
+hist(medal_counts_wide$Gold)
+plot(density(medal_counts_wide$Gold))
+barplot(
+  usa_gold_medals$count, 
+  width = 4, 
+  names.arg = usa_gold_medals$Year,
+  main = "USA Gold Medals"
+)
+mosaicplot(Year~Medal, medal_counts)
+```
+
+*Aside*: many functions take a "formula" as an argument, in the format : 
+"y ~ x1 + x2 + ....". We'll see this in more detail when we cover statistics.
+
+## Base R, ggplot and tidy data
+* Base graphics/lattice and `ggplot2` have one big difference: `ggplot2` 
+**requires** your data to be in tidy format. For base graphics, it can actually 
+be helpful *not* to have your data in tidy format.
+
+The difference is that `ggplot` treats `Medal` as an aesthetic parameter that 
+differentiates kinds of statistics, whereas base graphics treats each (year, 
+medal) pair as a set of inputs to the plot.
+
+Compare:
+
+```{r, fig.cap = ""}
+usa_all_medals <- medal_counts %>%
+  filter(NOC == "USA")
+
+# ggplot2 call
+ggplot(data = usa_all_medals, aes(x = Year, y = count)) +
+  geom_line(aes(color = Medal))
+```
+
+```{r, fig.cap = ""}
+usa_all_medals_untidy <- medal_counts_wide %>%
+  filter(NOC == "USA")
+
+# Base graphics call
+# (highlight and run whole block)
+plot(
+  usa_all_medals_untidy$Year, 
+  usa_all_medals_untidy$Gold, 
+  col = "green",
+  type = "l"
+)
+
+lines(usa_all_medals_untidy$Year, usa_all_medals_untidy$Silver, col = "blue")
+lines(usa_all_medals_untidy$Year, usa_all_medals_untidy$Bronze, col = "red")
+legend("top", legend = c("Gold", "Silver", "Bronze"),
+                fill = c("green", "blue", "red"))
+```
+
+
+

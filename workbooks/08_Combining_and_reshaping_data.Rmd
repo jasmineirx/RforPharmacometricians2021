@@ -1,0 +1,352 @@
+---
+title: '8) Combining and Reshaping Data'
+author: "Jasmine Hughes"
+date: "9/17/2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+
+```{r}
+# If you haven't yet installed dplyr, install it now!
+# install.packages('dplyr')
+library(dplyr)
+
+# Lets also load the gap data set:
+gap <- read.csv(
+  file.path("..", "data", "gapminder-FiveYearData.csv"), 
+  stringsAsFactors = FALSE
+)
+```
+
+# Introduction
+
+`dplyr` makes data analysis reproducible, readable, and often easier!
+
+* Human readable: the function names describe the action being done
+* Piping: chain functions in a step-by-step way, rather than nesting
+
+Many analytic tasks can be completed with `mutate`, `filter`, `select`, 
+`group_by`, `summarize` and `arrange`. But sometimes you'll need an expanded 
+tool kit. Let's look at a few more of the most useful functions.
+
+
+# Combining multiple data frames
+
+## `left_join`
+
+Sometimes we need to use data available from multiple sources. To take 
+advantage of the `dplyr` functions we used previously, we need data points of 
+interest to be in the same dataframe. The join family of functions helps here.
+
+```{r patient_dosing}
+pt_char <- data.frame(
+  pt = c("M.H.", "P.J.", "K.G.", "A.C."),
+  age = c(77, 35, 56, 48),
+  weight = c(65, 82, 70, 100),
+  stringsAsFactors = F
+)
+pt_doses <- data.frame(
+  pt = c("M.H.", "P.J.", "K.G.", "M.H.", "S.C."),
+  mg_per_kg = c(15, 15, 10, 20, 15),
+  interval = c("Q8", "Q12", "Q6", "Q8", "Q8"),
+  stringsAsFactors = F
+)
+
+```
+
+What happens if we want to calculate mg of drug per kg body weight?
+
+```{r joining}
+# left_join adds all the data from the right df 
+# to the matching rows of the left dataframe
+left_join(pt_char, pt_doses)
+```
+Note what happens to patient A.C., who does not have dosing information, and 
+patient S.C., for whom we do not have patient characteristics. Also, see how 
+R handled patient M.H., who was in the dosing table twice. Let's try the reverse:
+
+```{r joining2}
+left_join(pt_doses, pt_char, by = "pt")
+
+```
+What happened here to A.C., M.H. and S.C.?
+
+What if we want to keep all entries?
+
+## `full_join`
+
+```{r joining3}
+full_join(pt_char, pt_doses)
+```
+
+```{r join_by}
+# R will do its best guess to try judge which columns you want to join on if you do not otherwise specify
+# Here, the names match, but not all data is so convenient. Here's a contrived example:
+pt_doses %>%
+  rename(patient = pt) %>%
+  left_join(pt_char, by = c("patient" = "pt")) 
+
+```
+
+## `right_join`
+
+Right join is the reverse of left_join.
+```{r joining4}
+right_join(pt_char, pt_doses)
+
+```
+
+## `inner_join`
+
+What if we want to keep only patients for whom we have complete information?
+
+```{r joining5}
+inner_join(pt_char, pt_doses) %>%
+  mutate(mg = mg_per_kg * weight)
+```
+
+```{r join_venn_diagram}
+knitr::include_graphics(file.path("..", "img", "join-venn.png"), dpi = 400)
+```
+
+# Tidyr: Long versus Wide Data
+
+Even before we conduct analysis or calculations, we need to put our data into 
+the correct format. The goal here is to rearrange a messy dataset into one that 
+is **tidy**. 
+
+The two most important properties of tidy data are:
+
+1) Each column is a variable.
+2) Each row is an observation.
+
+Tidy data is easier to work with, because you have a consistent way of referring 
+to variables (as column names) and observations (as row indices). It then 
+becomes easy to manipulate, visualize, and model.
+
+Many tools in R will assume that your data is already tidy.
+
+For more on the concept of *tidy* data, read Hadley Wickham's paper 
+[here](http://vita.had.co.nz/papers/tidy-data.html)
+
+## Tidying Data/Wide vs. Long Formats
+
+> "Tidy datasets are all alike but every messy dataset is messy in its own way." 
+– Hadley Wickham
+
+Tabular datasets can be arranged in many ways. For instance, consider the data 
+below. Each data set displays information on heart rate observed in individuals 
+across 3 different time periods. But the data are organized differently in each 
+table.
+
+```{r}
+wide <- data.frame(
+  name = c("Wilbur", "Petunia", "Gregory"),
+  time1 = c(67, 80, 64),
+  time2 = c(56, 90, 50),
+  time3 = c(70, 67, 101)
+)
+wide
+
+long <- data.frame(
+  name = c(
+    "Wilbur", "Petunia", "Gregory", "Wilbur", "Petunia", 
+    "Gregory", "Wilbur", "Petunia", "Gregory"
+  ),
+  time = c(1, 1, 1, 2, 2, 2, 3, 3, 3),
+  heartrate = c(67, 80, 64, 56, 90, 50, 70, 67, 10)
+)
+long
+```
+
+**Question**: Which one of these do you think is the *tidy* format?
+
+We often refer to these different structurs as "long" vs. "wide" formats. In the 
+"long" format, you usually have 1 column for the observed variable and the other 
+columns are ID variables.
+
+For the "wide" format each row is often a site/subject/patient and you have 
+multiple observation variables containing the same type of data. These can be 
+either repeated observations over time, or observation of multiple variables 
+(or a mix of both). In the above case, we had the same kind of data (heart rate) 
+entered across 3 different columns, corresponding to three different time 
+periods.
+
+```{r join_venn_diagram}
+knitr::include_graphics(file.path("..", "img", "tidyr-fig1.png"), dpi = 400)
+```
+
+You may find data input may be simpler and some programs/functions may prefer 
+the "wide" format. However, many of R’s functions have been designed assuming 
+you have "long" format data.
+
+## Tidying the Gapminder Data
+
+Lets look at the structure of our original gapminder dataframe:
+
+```{r}
+head(gap)
+```
+
+**Question**: Is this data frame **wide** or **long**?
+
+Despite not having ALL observations in 1 column, this intermediate format makes 
+sense given that all 3 observation variables have different units. As we have 
+seen, many of the functions in R are often vector based, and you usually do not 
+want to do mathematical operations on values with different units.
+
+On the other hand, there are some instances in which a purely long or wide 
+format is ideal (e.g. plotting). Likewise, sometimes you'll get data on your 
+desk that is poorly organized, and you'll need to **reshape** it.
+
+## `tidyr`
+
+Thankfully, the `tidyr` package will help you efficiently transform your data 
+regardless of original format.
+
+```{r}
+# Install the "tidyr" package if you don't have it yet (only necessary one time)
+# install.packages("tidyr") # Not Run
+
+# Load the "tidyr" package (necessary every new R session)
+library(tidyr)
+
+```
+
+## `tidyr::pivot_longer`
+
+Until now, we've been using the nicely formatted original gapminder data set. 
+This data set is not quite wide and not quite long -- it's something in the 
+middle, but "real" data (i.e., our own research data) will never be so well 
+organized. Here let's start with the wide format version of the gapminder 
+data set.
+
+```{r}
+gap_wide <- read.csv(
+  file.path("..", "data", "gapminder_wide.csv"), 
+  stringsAsFactors = FALSE
+)
+head(gap_wide)
+```
+
+The first step towards getting our nice intermediate data format is to first 
+convert from the wide to the long format.
+
+The function `pivot_longer()` will turn a wide dataframe into a longer one by 
+transforming the observation variables into a single variable. This is sometimes 
+called "melting" your data, because it melts the table from wide to long. You 
+might also see it called "gathering".
+
+Those data will be melted into two variables: one for the variable names, and 
+the other for the variable values. Often, the terms "key" and "value" are used 
+to refer to the variable names and variable values. You might also see the terms
+"name" and "value".
+
+```{r}
+gap_long <- gap_wide %>%
+  pivot_longer(
+    -c(country, continent), 
+    names_to = "obstype_year", 
+    values_to = "obs_value"
+  )
+head(gap_long)
+
+head(gap_wide)
+
+?pivot_longer
+```
+
+Notice that we put 3 arguments into the `pivot_longer()` function:
+
+1. the name for the new column for the new ID variable (`obstype_year`),
+2. the name for the new amalgamated observation variable (`obs_value`),
+3. the names of the columns that we want don't want to gather into one variable. (We could also have supplied the names of the columns we do want to melt, or the indices of these columns) Notice that we don't want to melt down columns 1 and 2, as these are considered "ID" variables.
+
+We are nearly where we want to be. Let's do a little more clean up to make 
+"obstype_year" more usable.
+
+```{r}
+# Approach 1: Regular expressions for handling strings.
+gap_long_tidy1 <- gap_long %>%
+  mutate(
+    obstype = gsub("_.*", "", obstype_year),
+    year = gsub(".*_", "", obstype_year),
+    year = as.numeric(year)
+  ) %>%
+  select(continent, country, year, obstype, obs_value)
+
+head(gap_long_tidy1)
+```
+
+
+
+```{r}
+# Approach 2: use a function!
+gap_long_tidy2 <- gap_long %>%
+  tidyr::separate(
+    obstype_year, 
+    into = c("obstype", "year"), 
+    sep = "_"
+  ) %>%
+  mutate(year = as.numeric(year)) %>%
+  select(continent, country, year, obstype, value)
+
+?tidyr::separate
+head(gap_long_tidy2)
+```
+
+## `tidyr::pivot_wider`
+
+`pivot_wider` is the opposite of pivot_longer. It makes new columns using values 
+in one column as the new column names, and the values in a second column as the 
+new column values.
+
+```{r}
+gap_long_tidy1 %>%
+  pivot_wider(names_from = obstype, values_from = obs_value) %>%
+  head()
+
+?pivot_wider
+```
+
+Does that look familiar?
+
+# Extra Resources
+
+`dplyr` and `tidyr` have many more functions to help you wrangle and manipulate 
+your data. See the  
+[Data Wrangling Cheat Sheet](https://github.com/rstudio/cheatsheets/blob/master/data-transformation.pdf) 
+for more.
+
+# Breakout
+
+1. Starting with the gap data set, use `tidyr::pivot_wider` to create a data 
+frame of population over time, where each row is a country, and each column is a 
+year.
+
+```{r}
+
+```
+
+
+2. Calculate the age in years of each patient at the time of their diagnosis date.
+
+```{r}
+diagnosis <- data.frame(
+  pt = c("M.H.", "P.J.", "K.G.", "S.C."),
+  date_of_diagnosis = c("2020-08-01", "2019-01-11", "2020-03-11", "2020-04-18"),
+  stringsAsFactors = FALSE
+)
+dob <- data.frame(
+  pt = c("M.H.", "P.J.", "K.G.", "S.C."),
+  date_of_birth = c("1990-11-10", "1972-11-14", "2002-10-31", "1954-08-22"),
+  stringsAsFactors = FALSE
+)
+
+
+```

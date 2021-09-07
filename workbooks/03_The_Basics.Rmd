@@ -1,0 +1,419 @@
+---
+title: '3) The Basics'
+author: "Jasmine Hughes"
+date: "9/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# R as a calculator
+
+```{r computing,echo=TRUE,results='markup'}
+2 + 2  # add numbers
+2 * 3  # multiply numbers
+3 ^ 4  # powers
+3 ** 4 # powers
+2 * pi # multiply by a constant
+(3 + 4) * 2 # order of operations
+```
+
+```{r computing2,echo=TRUE,results='markup'}
+sqrt(4^4) # square root
+23 %% 2   # remainder
+log(10)   # logarithms (what is the default base?)
+log(100, base = 10)  # you can pass other arguments to change the base
+?log
+exp(1)
+
+# scientific notation works!
+5000000000 * 1000
+5e9 * 1e3
+```
+
+Think of a mathematical operation you need - can you guess how to do it in R?
+
+# Assigning values to R objects
+
+So far we have been mostly coding "interactively" - running a single command and 
+looking at the answer - or we have been saving objects (like graphs saved as 
+pictures) to our "working directory".
+
+But what if we want to use the same object for later calculations?
+
+A key action in R is to store values in the form of R objects, and to examine 
+the value of R objects. (Add notes to help remind yourself what's going on!)
+
+```{r assigning_values}
+# (variable name) <- (value, or code to create a value/object)
+val <- 5
+
+# (variable name) = (value, or code to create a value/object)
+val = 6 # equal sign *can* be used for assignment but is not conventional
+
+# In both the console and in R chunks, 
+# running a variable name will print its value out
+val
+print(val)
+
+Val <- 7 # case-sensitive!
+print(c(val, Val))
+
+val <- 9 # can be overwritten
+print(c(val, Val))
+
+
+
+```
+
+You can see these values change in the "Environment" tab in Rstudio.
+
+We can work with (and store) sequences and repetitions
+```{r sequences}
+mySeq <- 1:6
+mySeq
+
+years <- seq(1952, 2007, by = 5)
+years
+length(years)
+
+country <- rep("Afghanistan", 12)
+country 
+
+## This is a comment: here is an example of non-numeric data
+countries <- c("Afghanistan", "India", "Pakistan")
+countries
+```
+
+Try calculating and saving values as variables in the chunk below:
+
+```{r try_it_yourself}
+
+```
+
+
+# Vectors in R
+
+The most basic form of an R object is a vector. In fact, individual (scalar) 
+values are vectors of length one. The variables we created earlier (val, Val, 
+mySeq, years) are all vectors!
+
+We can concatenate values into a vector with `c()`.
+
+## 1) Numeric vectors
+Also known as "double precision floating point"
+
+```{r types_of_vectors1}
+nums <- c(1.1, 3, -5.7)
+myvals <- c(val, Val)
+devs <- rnorm(5)
+devs
+```
+
+## 2) Integer vectors
+Less common than numeric vectors, but it's good to know they exist since
+sometimes you'll see errors related to the difference between numeric and 
+integer vectors
+```{r types_of_vectors2}
+
+ints <- c(1L, 5L, -3L) # force storage as integer not decimal number
+## R Trivia: 'L' stands for 'long integer' (historical)
+notints <- c(1, 5, -3)
+identical(ints, notints)
+```
+## 3) character vector
+Most common way of storing non-numeric data
+
+```{r types_of_vectors3}
+chars <- c("pine", "apple")
+paste(chars, collapse = '')
+paste("character", "vector", sep = " ")
+
+chars <- c('hi', 'hallo', "mother's", 'father\'s', 
+   "She said, 'hi'", "He said, \"hi\"" )  
+# the backslash is an "escape character"
+# make sure opening and closing characters match!
+chars
+cat(chars[5])
+cat(chars[6])
+
+```
+## 4) logical vector (or boolean vector)
+```{r types_of_vectors4}
+
+bools <- c(TRUE, FALSE, TRUE)
+bools2 <- c(T, F, T) # less preferred (less legible)
+bools
+identical(bools, bools2)
+val == 8
+val <- 8 
+val = 9
+val < 9 
+
+val != 10
+```
+
+```{r types_of_vectors5}
+## combination
+combi <- c("pizza", 9, TRUE)
+combi
+
+# How do I know what datatype something is?
+typeof(combi)
+```
+
+# Working with indices and subsets
+
+```{r indexing}
+vals <- seq(2, 12, by = 2)
+vals
+vals[4]
+```
+
+Can you guess what these will do before running the code??
+```{r indexing2}
+vals[3:5]
+vals[c(1, 3)]
+vals[-c(1, 3)]
+which_indices <- c(rep(TRUE, 3), rep(FALSE, 2), TRUE)
+vals[which_indices]
+```
+
+# Comparing Values
+```{r comparisons}
+
+vec1 <- c(1, 2, 3, 4, 5)
+vec2 <- c(7, -4, 3, 4, 5.1)
+vec2 < vec1
+vec1 <= vec2
+
+vec1 == vec2
+vec1 != vec2
+## careful: 
+vec1 = vec2
+identical(vec1, vec2)
+
+## using 'or'
+vec1 >= 3 | vec1 == exp(0) | vec1 < -7
+## using 'and'
+vec1 >= 3 & vec1 %% 2 == 0 
+
+10 %% 2
+11 %% 2
+```
+
+# Reading Data From A File
+
+```{r load_data}
+
+#######################################################################
+## IMPORTANT: read in the Gapminder dataset from disk;
+## first make sure your working directory is the 'workbooks' directory:
+getwd()
+## if the result is not the 'workbooks' subdirectory of the bootcamp
+## directory, set the working directly along the lines of this:
+##
+## setwd('/Users/jasminehughes/Documents/Intro_to_R/RforPharmacometricians2021')
+##
+## replace '/Users/jasminehughes/Documents/Intro_to_R/' with whatever directory 
+## you put the bootcamp materials in; e.g. on Windows it might be something like
+## 'C:\\Users\\sarah\\R_for_pharmacometricians'
+##
+## You can also try navigate to this directory through the "Files" window,
+## then click The "More (cogwheel)" > Set as working directory
+##
+## If you've done that correctly, then the next command reads
+## in the dataset from the 'data' directory. In the next
+## command R finds that directory relative to the current
+## working directory.
+
+gap <- read.csv(
+  file.path("..", "data", "gapminder-FiveYearData.csv"),
+  stringsAsFactors = FALSE
+)
+
+
+
+#######################################################################
+```
+Our data was imported as a dataframe. Dataframes are tabular: defined by rows and columns. When doing statistics & data analysis in R, you'll mostly be working with dataframes.
+
+```{r looking_at_your_data}
+## Look at part of the data
+head(gap) # first few lines)
+tail(gap) # last few lines
+View(gap) # the whole shebang (avoid with very large datasets)
+dim(gap) # dimensions
+summary(gap) # basic info about each column
+```
+
+# R is a functional language
+
+* Operations are carried out with functions. Functions take objects as inputs 
+  and return objects as outputs. 
+* An analysis can be considered a pipeline of function calls, with output from a 
+  function used later in a subsequent operation as input to another function.
+* Functions themselves are objects: 
+
+```{r functions1}
+median
+class(median)
+median(c(6, 7, 18, 9.2))
+median(gap[["lifeExp"]])
+```
+
+Functions generally take arguments, some of which are often optional:
+```{r functions2}
+maxYear <- max(gap$year)
+lifeExp <- gap$lifeExp[gap$year == maxYear]
+median(lifeExp)
+# We just calculated the median life expectancy in 2007!
+```
+
+* We can embed function calls: 
+
+```{r, hist, fig.cap = ""}
+random_data <- rnorm(1000)
+hist(random_data)
+
+hist(rnorm(1000))
+```
+
+# Getting help about a function
+
+To get information about a function you know exists, use `help` or `?`, 
+e.g., `?lm`. For information on a general topic, use `apropos`.
+
+```{r eval = FALSE}
+help(lm)
+?lm
+
+?log
+
+apropos("mean")
+
+```
+
+# Basic kinds of R objects
+
+Vectors are not the only kinds of R objects.
+
+### Vectors 
+We saw these earlier!
+
+Vectors of various types (numeric (i.e., decimal/floating point/double), 
+integer, boolean, character), all items must be of the same type
+
+### Data frames
+This is what R does best!
+
+Collections of columns of potentially different types
+
+If you're at home in excel spreadsheets, this might feel most intuitive.
+
+```{r things_to_do_with_dfs}
+head(gap, 10)
+dim(gap)
+nrow(gap)
+names(gap)
+class(gap)
+is.matrix(gap)
+class(gap$year)
+class(gap$lifeExp)
+class(gap$country)
+
+```
+
+
+# Converting between different types of objects
+
+You can use the `as` family of functions.
+
+```{r converting_between_types}
+ints <- 1:10
+ints[4]
+as.character(ints)
+as.numeric(c('3.7', '4.8'))
+```
+
+Be careful: R tries to be helpful and convert between types/classes when it 
+thinks it's a good idea. Sometimes it is overly optimistic. 
+
+```{r}
+indices <- c(1.7, 2.3, 4.6)
+ints[indices]
+ints[0.999999999]
+```
+
+
+# Be Lazy
+
+If you're starting to type something you've typed before, or the long name of an 
+R object or function, STOP!  You likely don't need to type all of that.
+
+- Tab completion
+- Command history 
+    * up/down arrows
+    * Ctrl-{up arrow} or Command-{up arrow}
+- RStudio: select a line or block for execution
+- Write re-usable code! Put your code in a file and use `source()`. 
+  Example: `source(file.path('..', 'example_scripts', 'Example_Rscript.R'))`. 
+
+Or, create functions you can use within an analysis.
+
+# Common issue: incomplete code
+
+Sometimes you write some code that isn't a "complete sentence" and R gets
+confused. 
+```{r eval=FALSE}
+(9 + 2
+```
+The R console will show a little + sign, indicating it is expecting more.
+
+Press escape to try again, or complete the "sentence" by adding the missing 
+bracket.
+
+# Breakout
+
+In general, your answers to any questions should involve writing code to 
+manipulate objects. For example, if I ask you to find the maximum flight delay, 
+do not scan through all the values and find it by eye. Use R to do the 
+calculations and print results.
+
+Some of these questions will require you to search for the right function.
+
+**Hint**: use the function `apropos("key word")` to find something to use.
+
+
+1) The variable y contains all the life expectancy data in the "gap" data frame 
+we loaded earlier. Create a variable called 'x' that contains the mean life 
+expectancy. Then, create a vector of length 2 that contains the minimum and 
+maximum life expectancy. 
+```{r}
+y <- gap[["lifeExp"]]
+y <- gap$gdpPercap
+#This is where I write my answers!
+
+```
+
+2) Use functions in R to round 'x' to two decimal places and to two 
+significant digits.
+
+```{r}
+
+```
+
+3) Create a vector of GDP per capita in units of Euros rather than dollars.
+
+```{r}
+
+
+```
+
+4) Create a boolean (TRUE/FALSE) vector indicating whether total country GDP is greater than 1 trillion dollars. When entering 1 trillion, use R's scientific notation.
+
+```{r}
+
+```

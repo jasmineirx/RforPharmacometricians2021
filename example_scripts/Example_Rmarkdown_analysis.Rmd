@@ -1,0 +1,112 @@
+---
+title: "Example R Markdown Analysis"
+author: "Jasmine Hughes"
+date: "9/17/2021"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    template: template.tex
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE,message=FALSE)
+```
+
+# Load Data 
+
+In this part of my analysis, I can write plain text.
+
+It's useful for introducing the reader to my data set, like explaining how the 
+data was collected, or the motivation behind my project.
+
+```{r load_libraries}
+library(ggplot2)
+library(dplyr)
+```
+
+In between text, I can intersperse bits of code in what are called "chunks".
+
+Chunks start and end with three backticks (not apostrophes!). Then, curly 
+brackets ({}) are used to describe settings for the chunk.
+
+The first piece of information to share is the language. We are going to use R, 
+so it should include an `r`:
+
+```{r}
+my_data_set <- read.csv("../data/iris.csv")
+# note the file path here starts with ../
+# ".." means "go up one folder in the path"
+# Rmarkdown notebooks execute file paths relative to where the Rmd file is saved
+```
+
+# Create a graph
+
+Chunks can make coding easier, because you can work interactively:
+
+```{r create_a_graph,fig.width=4,fig.height=3}
+
+ggplot(my_data_set) +
+  aes(x = Sepal.Length, y = Sepal.Width, color = Species) +
+  geom_point() +
+  theme_minimal() +
+  xlab("Length") +
+  ylab("Width") +
+  scale_color_manual(values = c("magenta4", "orangered2", "turquoise4"))
+
+```
+
+# Save the output of our code
+
+```{r save_graph, echo=FALSE}
+my_graph <- ggplot(my_data_set) +
+  aes(x = Sepal.Length, y = Sepal.Width, color = Species) +
+  geom_point() +
+  theme_minimal() +
+  ggtitle("Sepal length and width for different iris species") +
+  xlab("Length") +
+  ylab("Width") +
+  scale_color_manual(values = c("magenta4", "orangered2", "turquoise4"))
+
+ggsave("iris_graph_rmd.png")
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+# Add whatever you need to make your code useful!
+
+You could write (and I have written!) publication-ready papers in R markdown!
+
+## Equations
+$mean = \frac{\sum{x}}{n}$
+
+## Citations
+
+---
+references:
+- id: Asimov1959
+  title: Enzymes and Metaphor
+  author:
+  - family: Asimov
+    given: Isaac
+  container-title: Journal of Chemical Education
+  volume: 36
+  URL: 'https://doi.org/10.1021/ed036p535'
+  DOI: 10.1021/ed036p535
+  issue: 11
+  publisher: ACS Publications
+  page: 261-263
+  type: article-journal
+  issued:
+    year: 1959
+    month: 11
+---
+
+Is it even science if you don't cite your sources? There are many ways to refer 
+to your favorite papers [@Asimov1959], but here's an example down below.
+
+
+
+# References

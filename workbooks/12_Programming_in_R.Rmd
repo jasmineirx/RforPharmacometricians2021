@@ -1,0 +1,580 @@
+---
+title: '11) Programming in R'
+author: "Jasmine Hughes"
+date: "9/17/2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+library(dplyr)
+gap <- read.csv(
+  file.path("..", "data", "gapminder-FiveYearData.csv"), 
+  stringsAsFactors = FALSE
+) 
+```
+
+# Overview
+
+So far, most of the tasks we've carried out in R have been basic operations, or 
+have leveraged the `tidyverse` and other packages for graphing or working with 
+data frames. However, sometimes you might need to perform somewhat more 
+complicated tasks. In this notebook, we will look at some of the basic building 
+blocks that you can put together to accomplish these tasks.
+
+These are some of the key pieces missing from SAS, Stata, SPSS and other tabular 
+data analysis software.
+
+
+# Loops
+```{r example_loop}
+for (iter in 1:10){
+  print(paste("the value of iter is", iter))
+}
+
+```
+
+In many languages, looping (for loops, while loops, etc.) is one of the main 
+constructs used to carry out computation. Loops are not emphasized as much in R, 
+both because they can be slow and because other syntax is often cleaner.
+
+But there are lots of times when using a loop does make sense.
+
+Most of you are probably familiar at least with the basic idea of iterating 
+through a series of steps. A for loop iterates through a pre-determined number 
+of iterations, while a while loop iterates until some condition is met. For 
+loops are more common in R, but while loops can be handy particularly for things 
+like optimization.
+
+## For loops
+
+```{r, for-example}
+out <- list()
+years <- unique(gap$year)
+length(out) <- length(years)
+names(out) <- years
+
+for (yrIdx in seq_along(years)) {
+     # equivalently: for(i in 1:length(DestSubset))
+     # n.b., seq_along(x) is better than 1:length(x), since it handles the case
+     # where the length of an object is 0 or NULL more robustly.
+     
+  # select the year of this iteration 
+  sub <- filter(gap, year == years[yrIdx])
+   
+     
+  if (sum(!is.na(sub$lifeExp)) && length(sub$lifeExp) > 1) {
+  # as long as data isn't missing...
+  # fit regression
+    out[[yrIdx]] <- lm(lifeExp ~ log(gdpPercap), data = sub)
+  } else {
+    out[[yrIdx]] <- NA
+  }
+}
+out[['2007']]
+summary(out[['2007']])
+summary(out[['1952']])
+
+names(out)
+```
+
+The iterations do not have to explicitly be over sequential numbers.
+
+```{r, for-nonsequential}
+for (yr in years) {
+ cat(yr, "\n")
+}
+```
+Nor do you need to iterate over numbers.
+```{r nonnumeric}
+for (lab in c("bilirubin", "creatinine", "WBC")){
+  print(lab)
+}
+
+```
+
+If you want to store the result of each loop somewhere, you need to initialize the object.
+
+```{r for_versus_vectorized}
+heights_cm <- c(165, 180, 150, 172)
+height_in <- c()
+
+for (pt in 1:length(heights_cm)){
+  height_converted <- heights_cm[pt] / 2.54
+  height_in <- c(height_in, height_converted)
+}
+print(height_in)
+heights_cm /2.54
+```
+We've done similar calculations using R's vectorized calculation abilities. 
+
+Which option is preferable? We can use the function `system.time` to test.
+
+```{r timing_code}
+heights_cm <- sample(140:190, 1000000, replace = T)
+heights_in <- c()
+# vectorized calculations
+system.time(
+  heights_in <- heights_cm / 2.54
+)
+
+# for loop
+system.time(
+  for (pt in 1:length(heights_cm)){
+    height_converted <- heights_cm[pt] / 2.54
+    heights_in <- c(height_in, height_converted)
+  }
+)
+
+# for loop, initializing the output vector
+heights_in <- rep(0, length(heights_cm))
+system.time(
+  for (pt in 1:length(heights_cm)){
+    height_converted <- heights_cm[pt] / 2.54
+    heights_in[pt] <- height_converted
+  }
+)
+
+```
+
+Loops can be slow! We can optimize them to an extent, but they will usually be 
+slower than vectorized calculations. However, loops can be very powerful and 
+sometimes they are the right approach:
+
+* Need to use a function that doesn't support vectorized operations (and you 
+  cannot re-write it)
+* The loop option is easier to read than the alternative, and
+* Code performance is a low priority or dataset is small
+
+# Branching (if-then-else syntax)
+
+We already saw an example of branching in the gap-minder *for* loop example.
+
+Here's a simple example to illustrate the syntax. 
+
+```{r, if}
+val <- rnorm(1)
+val
+if (val < 0) {
+  print("val is negative")
+} else {
+  print("val is positive")
+}
+```
+
+We can chain together `if` statements using `else if `.
+
+```{r, if-chain}
+val <- rnorm(1)
+val
+if (val < -1) {
+  print("val is more than one standard deviation below the mean.")
+} else if (abs(val) <= 1) {
+  print("val is within one standard deviation of the mean.")
+} else {
+  print("val is more than one standard deviation above the mean.")
+}
+```
+
+In general, the `{` brackets are only needed if you have multiple R expressions,
+but R will complain when an `else` starts a line of code, so generally using the
+`{` is good practice. That said, this _works just fine_:
+
+```{r, if-oneline}
+if (val < 0) print("val is negative") else print("val is positive")
+```
+
+# The condition in an if statement
+
+The condition in the if statement cannot be NA or R will give an error. This is
+a very common bug.
+
+```{r, if-bug,eval=FALSE}
+continents <- unique(gap$continent)
+continents
+
+continents <- unique(as.character(gap$continent))
+continents <- c('Antarctica', continents)
+
+out <- rep(0, length(continents))
+for (i in seq_along(continents)) {
+    sub <- filter(gap, continent == continents[i])
+    if(mean(sub$lifeExp) < 50)
+       print(continents[i])
+}
+
+print(i)
+sub <- gap[gap$continent == continents[i], ]
+if(mean(sub$lifeExp) < 50) print('here')
+mean(sub$lifeExp) < 50
+```
+
+An `NA`/`NaN` is the main reason an if statement may fail, because R will
+generally convert other values to logical values.
+
+Zero evaluates to `FALSE`, all other numbers evaluate to `TRUE`. In general
+strings are not converted to booleans.
+
+A more robust alternative is to use `isTRUE()`:
+
+```{r}
+isTRUE(NA)
+isTRUE(NULL)
+isTRUE(1)
+isTRUE(FALSE)
+isTRUE(TRUE)
+isTRUE(as.logical(1))
+```
+
+```{r, if-bug-fix}
+out <- rep(0, length(continents))
+for (i in seq_along(continents)) {
+  sub <- filter(gap, continent == continents[i])
+  if(isTRUE(mean(sub$lifeExp) > 70)){
+    print(continents[i])
+  }
+}
+```
+
+
+# Vectorized if/else
+
+For "simple" if/else applications, or where vectorized operations need to occur, 
+the function `ifelse` may be preferable.
+
+```{r alternative_one_line_if}
+print(
+  ifelse(val < 0, "val is negative", "val is positive")
+)
+
+bilirubin <- data.frame(
+  pt = c("M.H.", "P.J.", "K.G."),
+  lab = c(1, 1.8, 0.7)
+)
+
+bilirubin
+
+bilirubin %>% 
+  mutate(
+    bilirubin_test = ifelse(bilirubin$lab > 1.2, "elevated", "normal")
+  )
+
+bilirubin
+
+```
+
+# Functions
+
+Functions are one of the most important constructs in R (and many other 
+languages). They allow you to modularize your code - encapsulating a set of 
+repeatable operations as an individual function call.
+
+You should rely heavily on functions rather than having long sets of expressions 
+in R scripts.
+
+Functions have many important advantages:
+
+* They reduce bugs by avoiding having multiple instances of the same 
+  functionality.
+  
+* They reduce time involved in coding by eliminating redundancy.
+
+* They make for cleaner and more easily-readable code.
+
+A basic goal is writing functions is *modularity*.
+
+In general, a function should
+
+* be fairly short,
+
+* be focused and specific in what it does, and
+
+* be designed so that it can be used in combination with other functions to 
+  carry out more complicated operations.
+
+# Writing functions
+
+## The Basic Syntax
+
+Create a function:
+
+```{r}
+repeat_what_i_said <- function(what_i_said){
+  paste0("You said: '", what_i_said, "'")
+}
+
+repeat_what_i_said("use functions often!")
+repeat_what_i_said("cats")
+```
+
+A function takes 0 or more arguments, and will return the last unassigned line 
+of code, as above, or you can more explicitly return a value.
+
+```{r}
+
+how_much_do_i_like_cats <- function(num){
+  if (num < 5) {
+    return("You don't like cats very much")
+  } else if (num < 50) {
+    return("You think cats are okay")
+  } else {
+    return("You really like cats!")
+  }
+}
+
+how_much_do_i_like_cats(sample(1:100, 1))
+
+```
+
+## A more complicated example
+
+Let's say that body mass index (BMI) is something you often have to calculate. 
+You could remember the formula and type it out each time: bmi = weight/height**2
+
+But it might be less error prone to write a function! 
+
+```{r}
+calculate_bmi <- function(height_in_cm, weight_in_kg){
+  height_in_m <- height_in_cm/100
+  weight_in_kg / height_in_m ** 2
+}
+
+calculate_bmi
+
+```
+
+Lets try it out!
+
+```{r}
+head(starwars)
+
+starwars %>%
+  select(name, height, mass) %>%
+  mutate(bmi = calculate_bmi(height_in_cm = height, weight_in_kg = mass))
+```
+
+# Function arguments
+
+R can match arguments by name (when provided) or by position (the fall-back). 
+
+```{r}
+starwars %>%
+  select(name, height, mass) %>%
+  mutate(bmi = calculate_bmi(height, mass))
+```
+
+It also allows one to specify default values so that the user doesn't have to 
+explicitly provide all the arguments.
+
+```{r, fun-args}
+calculate_bmi2 <- function(height, weight_in_kg, height_unit = "cm"){
+  if (!height_unit %in% c("cm", "m")) {
+    stop("Unrecognized unit for height!")
+  }
+  if (height_unit == "cm") {
+    height_in_m <- height/100
+  } else {
+    height_in_m <- height
+  }
+  weight_in_kg / height_in_m ** 2
+}
+
+calculate_bmi2(170, 70)
+calculate_bmi2(1.7, 70, "m")
+calculate_bmi2(170, 70, "cm")
+calculate_bmi2(67, 70, "inches")
+```
+
+# What is the "..." argument for?
+
+Using `...` as one of the arguments to a function allows a function to pass
+along user-provided arguments without specifying explicitly what the user might
+provide. 
+
+```{r, usedots, fig.cap = ""}
+bilirubin_labs <- c(1.0, 1.5, 2.0, NA, 1.8, 0.2, 0.3, 0.7, NA)
+
+mean_above_thresh <- function(vec, thresh, ...){
+  vec <- vec[vec > thresh]
+  return(mean(vec, ...))
+}
+?mean
+mean_above_thresh(vec = bilirubin_labs, thresh = 1.2, na.rm = T)
+```
+
+
+# Important concepts with R functions
+
+Functions in R return an object. In general, R functions are and should be 
+designed such that the only effect of the function is through the return value.
+
+**Side effects** are when a function affects the state of the world in addition 
+to its return value.  Can you think of any side effects that you saw an R 
+function produce from earlier in the workshop?  What about:
+
+- `library()`
+- `setwd()`
+- `plot()`
+
+Functions in R are (roughly) *pass-by-value* and not *pass-by-reference*. 
+This means that if you modify an argument inside the function it will not change 
+the original value outside the function. This protects you from a major 
+potential source of side effects. (There are exceptions to this rule.)
+
+In actuality, functions in R are *call-by-value*. What this means for our 
+purposes is that you can pass an input argument in without a copy being made of 
+it. This saves time and memory. At the time that you modify the input within the 
+function (if ever), then a copy is made and  the modified input is different 
+than the original value outside the function.
+
+# Variable scope and global variables
+
+In general functions should not make use of variables from outside the function. 
+(However, for quick-and-dirty work and in some other circumstances, one may do 
+this.) This provides modularity and reduces bugs and surprises.
+
+If R can't find a variable that is used in a function based on the function 
+arguments and variables defined locally in the function, it goes and looks 
+elsewhere following a set of rules called *lexical scoping*. (This type of 
+scoping has to do with R's roots (and explains why R is very similar to other 
+languages for functional programming) - we won't go into details here but 
+certainly worth looking into as you start using R more.)
+
+Basically this means that it looks for variables relative to where the function 
+is defined (not relative to where the function is called).
+
+This can get involved, but a couple brief examples illustrate the basic idea.
+
+```{r, scoping}
+x <- 2
+f <- function(y) {
+    return(x + y)
+}
+f(1) # 2 + 1 = 3
+f(2) # 2 + 2 = 4
+
+# f looks outside the function for something called x, since there is no x 'within' the function
+
+g <- function(y) {
+  x <- 10
+  return(f(y))
+}
+g(1) # 2 + 1 = 3
+g(2) # 2 + 2 = 4
+# f is using the global values for x (f is defined globally)
+
+g <- function(y) {
+  f <- function(y) {
+     return(x + y)
+  }
+  x <- 10
+  return(f(y))
+}
+
+g(1) # 10 + 1 = 11
+g(2) # 10 + 2 = 12
+
+#f is defined within g, x is defined within g
+
+```
+
+This is a contrived example - but it's quite common to accidentally use 
+variables you didn't define and get unintended errors in your calculations....
+
+Note that `x` is used as a global variable here, which in general is bad 
+practice. Don't write functions like `f` :)
+
+# When do I start programming?
+
+> “[W]e wanted users to be able to begin in an interactive environment,
+> where they did not consciously think of themselves as programming.
+> Then as their needs became clearer and their sophistication increased,
+> they should be able **to slide gradually into programming, when the
+> language and system aspects would become more important**.”
+
+[John Chambers, quoted by Roger Peng in his UseR Keynote](https://simplystatistics.org/2018/07/12/use-r-keynote-2018/)
+
+# Key Principles of R
+
+- Everything that exists is an object.
+- Everything that happens is a function call.
+
+### What does the 2nd principle mean?
+
+Are arithmetic operations really just functions?
+```{r, plusfun}
+3 + 2
+'+'(3, 2)
+```
+
+Yes!
+
+And what about indexing?
+
+```{r, indexingfun}
+x <- runif(100)
+x[2]
+'['(x , 2)
+```
+
+Also yes!
+
+(But avoid writing your code this way because it isn't super readable.)
+
+
+### What does the 1st principle mean?
+
+```{r, funs-as-objects}
+class(1)
+class(runif)
+class(function(x) x^2)
+square <- function(x) x^2
+class(square)
+```
+
+
+### Onwards: Readings and References
+
+* A great reference for learning both basic and advanced concepts in using the R 
+language for data analysis is the book _R for Data Science_, by Garrett 
+Grolemund and Hadley Wickham. An online version is freely available and may be 
+accessed [here](http://r4ds.had.co.nz/). In particular, 
+[chapter 21 ("Iteration")](http://r4ds.had.co.nz/iteration.html) is a great 
+review of much of what we have covered in this module.
+
+
+# Breakout
+
+### Basics
+
+1) Write a for loop that will loop through a vector of values and produce a vector equal to the input vector except with negative values set to zero. (ex: `c(-2.3, 0, 6, 9) should become c(0, 0, 6, 9))
+
+```{r}
+
+```
+
+2) Write an R function that will take an input vector and set any negative values in the vector to zero.
+
+```{r }
+
+```
+
+### Using the ideas
+
+2) Write an R function that will take an input vector and set any value below a 
+threshold to be the value of threshold. Optionally, the function should instead 
+set values above a threshold to the value of the threshold.
+
+```{r}
+
+
+```
+
+3) Augment your function so that it checks that the input is a numeric vector
+and return an error if not. (See the help information for `stop()`.)
+
+```{r}
+
+
+```

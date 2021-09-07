@@ -1,0 +1,340 @@
+---
+title: '10) Statistical Tools'
+author: "Jasmine Hughes"
+date: "9/17/2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+
+```{r}
+library(dplyr)
+
+# Lets also load the gap data set:
+gap <- read.csv(
+  file.path("..", "data", "gapminder-FiveYearData.csv"), 
+  stringsAsFactors = FALSE
+)
+```
+
+# Describing relationships
+
+Once we've carried out group-wise operations and perhaps reshaped it, we may 
+also like to describe the relationships in the data. Often this involves fitting 
+some style of regression model.  The goal can be pure prediction, description, 
+or inferring a causal relationship between variables.
+
+Of course to infer causality, one has to be quite careful and techniques that 
+try to avoid the usual pitfall that correlation is not causation are way beyond 
+what we can cover here.
+
+We'll just see the basics of how to fit regressions here. 
+
+# Inference/Regression
+
+- Running regressions in R is generally straightforward.
+
+- Most basic, catch-all regression function in R is *glm*
+
+- *glm* fits a generalized linear model with your choice of family/link function 
+  (gaussian, logit, poisson, etc.)
+
+- *lm* is just a standard linear regression 
+
+- The basic glm call looks something like this:
+
+```{r eval=FALSE}
+
+glm(
+  formula = y ~ x1 + x2 + x3 + ..., 
+  family = familyname(link = "linkname"),
+  data = mydata
+)
+```
+
+If you're using `lm`, the call looks the same but without the `family` argument. 
+
+*Example*: suppose we want to regress the life expectency on the GDP per capita 
+and the population, as well as the continent and year.  The lm/glm call would be 
+something like this:
+
+```{r}
+reg <- lm(
+  formula = lifeExp ~ log(gdpPercap) + log(pop) + continent + year, 
+  data = gap
+)
+summary(reg)
+```
+
+## Formula class
+
+One of the arguments for `lm` and `glm` is "formula". This is another object type!
+
+```{r}
+hypothesis1 <- as.formula("y ~ a + b")
+class(hypothesis1)
+
+hypothesis1
+```
+
+If you're building many different linear models, it might be helpful to store 
+the formula for different structures as variables, so you can write more 
+"generic" code.
+
+# Regression output
+
+When we store this regression in an object, we get access to several items of 
+interest
+
+```{r}
+# View components contained in the regression output
+names(reg)
+# Examine regression coefficients
+reg$coefficients
+# Examine regression degrees of freedom
+reg$df.residual
+# See the standard (diagnostic) plots for a regression
+plot(reg)
+```
+
+- R has a helpful summary method for regression objects
+```{r}
+summary(reg)
+```
+
+- Can also extract useful things from the summary object
+
+```{r}
+# Store summary method results
+summ_reg <- summary(reg)
+# View summary method results objects
+objects(summ_reg)
+# View table of coefficients
+summ_reg$coefficients
+```
+
+- Note that, in our results, R has broken up our variables into their different 
+factor levels (as it will do whenever your regressors have factor levels)
+
+- If your data aren't factorized, you can tell lm/glm to factorize a variable 
+(i.e. create dummy variables on the fly) by writing `factor(character_variable)`
+
+```{r, eval=FALSE}
+lm(
+  formula = y ~ x1 + x2 + factor(x3), 
+  data = df
+  )
+```
+
+- You can also supply other data transformations in the call:
+
+```{r eval=FALSE}
+lm(formula = y ~ log(x1) + x2 ** 2 + factor(x3), data = df)
+```
+
+# Setting up regression interactions
+
+- There are also some useful shortcuts for regressing on interaction terms:
+
+`x1:x2` interacts all terms in x1 with all terms in x2
+```{r}
+summary(
+  lm(lifeExp ~ log(gdpPercap) + log(pop) + continent:factor(year), data = gap)
+)
+```
+
+`x1*x2` produces the cross of x1 and x2, or x1+x2+x1:x2
+```{r}
+summary(
+  lm(lifeExp ~ log(gdpPercap) + log(pop) + continent*factor(year), data = gap)
+)
+```
+
+# Statistical Tests
+
+Almost any statistical test you can think of is already in R... and the rest are 
+available in other packages.
+
+## Example: t-test
+
+```{r t_tests}
+heights_A <- c(165, 145, 160, 170, 164, 167)
+heights_B <- c(172, 181, 175, 165, 168, 178)
+height_test <- t.test(heights_A, heights_B)
+height_test
+
+attributes(height_test)
+height_test$p.value
+height_test$conf.int
+
+t.test(heights_A, heights_B, paired = TRUE)
+
+```
+
+## Example: normality test
+
+Often, before you can apply a frequentist hypothesis test, you need to confirm 
+the distribution of data fits your assumptions (usually, assume normally 
+distributed).
+
+```{r normality_test}
+
+data.frame(A = heights_A, B = heights_B) %>%
+  pivot_longer(everything(), names_to = "measurement_time", values_to = "measurement_val") %>%
+  ggplot() +
+  aes(x = measurement_time, y = measurement_val) +
+  geom_boxplot()
+
+s_test_b <- shapiro.test(heights_B)
+s_test_b$p.value
+s_test_a <- shapiro.test(heights_A)
+s_test_a$p.value
+
+```
+
+## Example: ANOVA with post-hoc Tukey
+
+```{r anova}
+gap %>%
+  ggplot() +
+  aes(x = continent, y = lifeExp) +
+  geom_boxplot(fill = NA, outlier.shape = NA) +
+  geom_jitter(size = 0.1, alpha = 0.5, width = 0.2) +
+  theme_minimal()
+
+aov <- aov(formula = lifeExp ~ factor(continent) + factor(year), data = gap)
+
+TukeyHSD(aov)
+summary(aov)
+```
+This is an example of a one-way ANOVA, but you can build a two-way ANOVA by adding a second independent variable in your formula.
+
+# Distributions
+
+Since R was developed by statisticians, it handles distributions and simulation 
+seamlessly.
+
+All commonly-used distributions have functions in R. Each distribution has a 
+family of functions: 
+
+* d - probability density/mass function, e.g. `dnorm()`
+
+* r - generate a random value, e.g., `rnorm()`
+
+* p - cumulative distribution function, e.g., `pnorm()`
+
+* q - quantile function (inverse CDF), e.g., `qnorm()`
+
+Some of the distributions include the following (in the form of their random 
+number generator function): `rnorm()`, `runif()`, `rbinom()`, `rpois()`
+
+# Distributions in action
+
+```{r, fig.cap = ""}
+rnorm(10, mean = 150, sd = 15)
+pnorm(1.96)
+qnorm(.975)
+dbinom(0:10, size = 10, prob = 0.3)
+dnorm(5)
+dt(5, df = 1)
+
+x <- seq(-5, 5, length = 100)
+plot(x, dnorm(x), type = 'l')
+```
+
+```{r, fig.cap = ""}
+x <- seq(0, 10, length = 100)
+plot(x, dchisq(x, df = 1), type = 'l')
+```
+
+# Other types of simulation and sampling
+
+We can draw a sample with or without replacement.
+
+```{r}
+sample(1:nrow(gap), 20, replace = TRUE)
+```
+
+Bootstrapping is very common type of random sampling in machine learning and in 
+pharmacokinetic modeling/analysis. There are a number of specialized packages:
+
+* rsample (tidyverse, mostly for data handling, write your own statistical 
+  operations)
+  
+* bootstrap (not tidyverse, more "built in" statistical operations)
+
+* boot (not tidyverse, more "built in" statistical operations)
+
+# The Random Seed
+
+A few key facts about generating random numbers
+
+* Random number generation is based on generating uniformly between 0 and 1 and 
+  then transforming to the kind of random number of interest: normal, 
+  categorical, etc.
+  
+* Random numbers on a computer are *pseudo-random*; they are generated 
+  deterministically from a very, very, very long sequence that repeats
+  
+* The *seed* determines where you are in that sequence
+
+To replicate any work involving random numbers, make sure to set the seed first.
+
+```{r}
+set.seed(1) # this can be whatever number you want.
+# I have an untested theory that 42 is over-represented in random seeds.
+vals <- sample(1:nrow(gap), 10)
+vals
+vals <- sample(1:nrow(gap), 10)
+vals
+set.seed(1)
+vals <- sample(1:nrow(gap), 10)
+vals
+```
+
+# Breakout 
+
+### Basics
+
+1) Generate 100 random Poisson values with a population mean of 5 using `rpois`. 
+How close is the mean of those 100 values to the value of 5?
+
+```{r}
+
+```
+
+2) Set your random seed, then randomly generate two vectors of length 10, 
+sampling from the normal distribution (`rnorm`). Are your two vectors identical? 
+How can you change your code so that both randomly sampled vectors are 
+identical?
+
+```{r}
+
+```
+
+
+
+### Using the ideas
+
+3) Fit two linear regression models from the gapminder data, where the outcome 
+is `lifeExp` and the explanatory variables are `log(pop)`, `log(gdpPercap)`, and 
+`year`. In one model, treat `year` as a numeric variable. In the other, 
+factorize the `year` variable. How do you interpret each model?
+
+```{r }
+
+
+```
+
+4) Randomly sample ten values from the normal distribution to create two vectors 
+of length 10, one with a mean of 8 and a standard deviation of 1, and other with 
+a mean of 10 and a standard deviation of 3. Use a t-test to see if these vectors 
+are statistically different, using a confidence level of alpha = 0.05.
+
+```{r}
+
+```

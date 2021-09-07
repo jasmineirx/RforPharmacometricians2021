@@ -1,0 +1,384 @@
+---
+title: 'Module 9: Writing Good Code & Advanced R'
+author: "Jasmine Hughes"
+date: "9/17/2021"
+output: html_document
+---
+
+```{r chunksetup, include=FALSE} 
+library(dplyr)
+gap <- read.csv(
+  file.path("..", "data", "gapminder-FiveYearData.csv"), 
+  stringsAsFactors = FALSE
+) 
+```
+
+# Before we start this module...
+
+You know most of what you need to know already!
+These rules are just to help you reach your goals with minimal headaches...
+
+Not all of these tips will be immediately useful, but I think the exposure to 
+someof these concepts will help you know what tools are at your disposal.
+
+# Style Guides
+> Good coding style is like using correct punctuation. You can manage without 
+it, but it sure makes things easier to read. - Hadley Wickham
+
+'Advanced R' by Hadley Wickham: http://adv-r.had.co.nz/Style.html
+
+Working groups & companies may have their own!
+Google: https://google.github.io/styleguide/Rguide.html
+
+People have strong opinions about this kind of thing:
+https://simplystatistics.org/2018/07/27/why-i-indent-my-code-8-spaces/
+
+Overall, Code That Works > Pretty Code... 
+... But code is typically read more often than it is written.
+
+# Tips for avoiding bugs
+
+- Plan out your code in advance, including all special cases/possibilities.
+  Can you abstract some tasks to make it more general? Can you break down one
+  big task into many smaller tasks (and functions)?
+
+- When doing software development, write tests for your code early in
+  the process. (There's packages for this! `testthat` is probably the most
+  widely used). Tests are essentially "when I give this function x, I expect y".
+
+- Build up code in pieces, testing along the way. Make big changes in
+  small steps, sequentially checking to see if the code has broken on
+  test case(s). 
+
+- Analysis should also be built up in pieces. Check your data distributions
+  regularly. Peak at the first few lines regularly.
+
+- Code in a modular fashion, making good use of functions, so that you
+  don't need to debug the same code multiple times. Smaller functions
+  are easier to debug, easier to understand, and can be combined in
+  a modular fashion.
+
+- Use core R functionality and algorithms already coded. Figure out
+  if a functionality already exists in (or can be adapted from) an R
+  package (or potentially in a C/Fortran library/package): code that
+  is part of standard mathematical/numerical packages will probably
+  be more efficient and bug-free than anything you would write.
+
+- Remove objects you don't need, to avoid accidentally using values
+  from an old object via the scoping rules.(`remove()`)
+
+- Be careful that the conditions of *if* statements and the sequences
+  of *for* loops are robust when they involve evaluating R code.
+
+- Don't hard code numbers - use variables (e.g., number of iterations,
+  parameter values in simulations), even if you don't expect to change
+  the value, as this makes the code more readable and reduces bugs when
+  you use the same number multiple times. 
+
+- Check that inputs to and outputs from functions (either functions
+  you call or functions you write) are valid and use `warning()`
+  and `stop()` to give a warning or stop execution when something
+  unexpected happens.
+
+- Write code for clarity and accuracy first; then worry about efficiency.
+  Write an initial version of the code in the simplest way, without
+  trying to be efficient; then make a second version that employs efficiency
+  tricks and check that both produce the same output.
+  
+# Common syntax errors and bugs
+- Parenthesis mis-matches
+  - `[...]` vs. `[[...]]`
+  
+- Comparing real numbers exactly using `==` is dangerous. 
+  Suppose you generate `x = 0.333333` in some fashion with some code and then 
+  check: `x == 1/3`. This will produce FALSE. (Try using `round()` to compare 
+  numbers if you are in this situation)
+
+- Vectors vs. single values: 
+    + `||` vs. `|` and `&&` vs `&`.
+    + You expect a single value but your code gives you a vector
+    + You want to compare an entire vector but your code just compares the first 
+      value (e.g., in an `if` statement) 
+    + consider using `identical()` or `all.equal()` or `all()` or `any()` etc.
+      
+```{r}
+c(TRUE,TRUE,FALSE) | c(TRUE)
+
+all(c(TRUE,TRUE,FALSE)) || TRUE
+
+```
+
+- Silent type conversion when you don't want it, or lack of coercion where 
+  you're expecting it
+
+- Using the wrong function or variable name
+
+- Giving unnamed arguments to a function in the wrong order (best practices to 
+  name them.... easier to read, but less succinct)
+  
+- Forgetting to define a variable in the environment of a function and having 
+  the function, via R's scoping rules, get that variable as a global variable 
+  from one of the enclosing environments. 
+  
+  At best the types are not compatible and you get an error; 
+  at worst, you use a garbage value and the bug is hard to trace. 
+  In some cases your code may work fine when you develop the code 
+  (if the variable exists in the enclosing environment), but then may not work 
+  when you restart R if the variable no longer exists or is different.
+
+- NULL vs NA. If a value doesn't exist, and you try to compare it (ex, 
+  `is.na(NULL)`), you'll get an error. Try checking first for NULL before NA 
+  (`if (is.null(x) | is.na(x))`) or use `isTRUE(is.na(x))`.
+  
+# Catching bugs
+
+There's a function called `debug` that helps you step through your code to find 
+the source of errors. There's a function called `traceback` that tells you which 
+functions were called, and in what order.
+
+Let's briefly see these tools in action. I'll demo this in a very basic way, but 
+hopefully this will give you an idea of the power of these tools.
+
+```{r eval = F}
+buggyFun <- function(myDF) {
+   print(names(myDF))
+   myDF$id <- seq_len(nrow(myDF))
+   sums <- rowSums(myDF)
+   return(sums)
+}
+
+buggyFun(gap)
+# unhelpful error message...
+
+traceback()
+
+debug(buggyFun) #turn on debugger
+# run the command below from the console
+buggyFun(gap)
+undebug(buggyFun) # turn off again
+
+options(error = recover)
+buggyFun(gap)
+
+```  
+
+We can also insert ``browser()`` inside a function and R will stop there and 
+allow us to proceed with debugging statements.
+
+# Testing
+
+Testing should be performed on multiple levels and begun as early as possible
+in the development process.  For programs that accept input either from a user
+or file, it is important that the code validates the input is what
+it expects to receive. Tests that ensure individual code elements (e.g., 
+functions, classes, and class methods) behave correctly are called *unit tests*.
+
+Writing unit tests early in the process of implementing new functionality
+helps you think about what you want a piece of code to do, rather than just how
+it does it. This practice improves code quality by focusing your attention
+on use cases rather than getting lost in implementation details.
+
+The *testthat* package and *testit* package are helpful for setting up tests. 
+Also, *RUnit* is a testing framework for R that helps automate test setup, 
+creation, execution, and reporting. 
+
+
+# Memory use
+
+You should know how much memory (RAM) the computer you are using has and keep in 
+mind how big your objects are and how much memory you code might use. All 
+objects in R are stored in RAM unlike, e.g., SAS or a database.
+
+If in total, the jobs on a machine approach the physical RAM, the machine will 
+start to use the hard disk as 'virtual memory'. This is called paging or 
+swapping, and once this happens you're often toast (i.e., your code may take 
+essentially forever to finish).
+
+Often it's a good idea to roughly estimate how much memory an object will take 
+up even before creating it in R. You can do this with some simple arithmetic. 
+Every real number takes 8 bytes (integers and logicals take less; character 
+strings are complicated), so an object with, say, 1 million rows and 10 columns, 
+all numbers, would take roughly 8 * 1000000 * 10 bytes or 800 Mb.
+
+```{r}
+x <- rnorm(1e7)
+object.size(x)
+1e7*8/1e6  # direct calculation of Mb
+print(object.size(x), units = 'auto')
+x <- rnorm(1e8)
+gc()
+rm(x)
+gc()
+```
+
+# Scripting
+
+* Keep your code in script (i.e., text) files.
+* Keep your files modular and focused.
+* Write functions to reuse code.
+* Learn a powerful, general purpose text editor
+
+If you use a good editor (such as RStudio's built-in editor, or Visual Studio 
+Code), it's easier to write and understand your code.
+
+With such editors, you can generally then execute lines or blocks of code easily.
+
+To run all the code in an entire file, do `source('myCodeFile.R')`.
+
+# Good coding practices: functions
+
+Use functions whenever possible. In particular try to write functions 
+rather than carry out your work using blocks of code. Why? Functions 
+allow us to reuse blocks of code easily for later use and for recreating 
+an analysis (reproducible research). It's more transparent than sourcing a file
+of code because the inputs and outputs are specified formally, so
+you don't have to read through the code to figure out what it does.
+
+Good use of functions includes:
+
+- Write reusable code for core functionality and keep a single copy
+  of the code (w/ backups of course) so you only need to change it in one place
+
+- Smaller functions are easier to debug, easier to understand, and can
+  be combined in a modular fashion (like the UNIX utilities). 
+  (Goal: 50 or fewer lines)
+
+Functions should: 
+
+ - be modular (having a single task); 
+ 
+ - have meaningful name; and
+ 
+ - have a comment describing their purpose, inputs and outputs (see the
+   help file for any standard R function for how this is done in that context).
+   See `roxygen2` for the package that makes these look pretty. 
+   https://cran.r-project.org/web/packages/roxygen2/vignettes/roxygen2.html
+
+Two options:
+1. Include your functions in your analysis scripts up at the top.
+2. Create them in a new .R file, add them to environment with 
+`source('pathtofile/functionfile.R')`
+
+The first is easiest, but once you build up a code base, the second is preferred. 
+(And makes it easier to compile functions into a package...)
+
+# Good coding practices: syntax
+
+- Header information: put meta info on the code into the first few lines
+  of the file as comments. Include who, when, what, how the code fits
+  within a larger program (if appropriate), possibly the versions of
+  R and key packages that you wrote this for
+
+- Indentation: do this systematically (your editor can help here). This
+  helps you and others to read and understand the code and can help
+  in detecting errors in your code because it can expose lack of symmetry.
+
+- Whitespace: use a lot of it. Some places where it is good to have
+  it are (1) around operators (assignment and arithmetic), (2) between
+  function arguments and list elements, (3) between matrix/array indices,
+  in particular for missing indices. 
+
+- Use blank lines to separate blocks of code and comments to say what
+  the block does
+
+- Split long lines at meaningful places. (80 character length is traditional)
+
+```{r}
+ggplot(gap) + 
+  aes(x = factor(year), y = lifeExp) + 
+  geom_boxplot()
+```
+  
+- Use parentheses for clarity even if not needed for order of operations. 
+  For example, `a/y*x` will work but is not easy to read and
+  you can easily induce a bug if you forget the order of operations.
+  
+- Documentation - add lots of comments (but don't belabor the obvious). 
+  Remember that in a few months, you may not follow 
+  your own code any better than a stranger. Some key things to document: 
+    - summarizing a block of code, 
+    - explaining a very complicated piece of code 
+    - explaining arbitrary constant values.
+    - break code into separate files (< 1000 lines per file) with meaningful 
+      file names and related functions grouped within a file.
+- Choose a consistent naming style for objects and functions: 
+  e.g. *numIts* (lowerCamelCase) vs. *NumIts* (UpperCamelCase) 
+  vs. *num.its* vs. *num\_its*
+    + I'd suggest avoiding periods in names since periods are used for 
+      object-oriented programming in R and many other languages
+      
+    - Try to have the names be informative without being overly long.
+    
+    - Try to avoid using the names of standard R functions for your objects, 
+      but R will generally be fairly smart about things.
+      
+```{r}
+c <- 7
+c(3,5)
+c
+rm(c)
+c
+```
+
+- Use active names for functions (e.g., *calc_loglik*, *calcLogLik*)
+
+
+# Reproducible research
+
+> An article about computational science in a scientific
+publication is **not the scholarship itself**, it is merely
+**advertising** of the scholarship. The actual scholarship is the
+complete software development environment and the
+complete set of instructions which generated the figures.
+-  Jonathan Buckheit and David Donoho, WaveLab and Reproducible Research (1995)
+
+Here are some useful articles talking about reproducibility.
+
+- [Wilson et at., Best practices for scientific computing, ArXiv:1210:0530](http://arxiv.org/abs/1210.0530)
+- [Gentzkow and Shapiro tutorial for social scientists](https://web.stanford.edu/~gentzkow/research/CodeAndData.pdf)
+
+
+# Some ideas for improving reproducibility
+
+- Never change a dataset manually, including in pre-processing and 
+  post-processing. 
+  * Always have a script that operates on the data (or results/output). 
+  * It's a good idea to have your projects organized into folders, with one 
+    folder for your raw data, and one folder for your "cleaned" or "processed" 
+    data, whatever that might mean.
+
+- Produce figures (e.g., from R) via a script and not by point-and-click.
+
+- When making figures, use `save()` or `save.image()` to save all the inputs 
+  needed to recreate a figure, with the code for making the figure in a script 
+  file.
+- If feasible, include your code for doing analyses and making figures in the 
+  relevant document reporting the work by using one of the following tools
+    - *R Markdown*
+    - *Latex* with *knitr* 
+    - *Jupyter* (also works with python and julia)
+    
+- Always set the random number seed so someone else can duplicate your exact 
+  numbers.
+  
+- Use version control tools such as Git! 
+
+# Some good books
+
+Many are available online for free!
+ 
+R in general:
+
+* Wickham, Hadley; Advanced R. [https://adv-r.had.co.nz](https://adv-r.had.co.nz) 
+  (good coverage of advanced topics in the R language)
+  
+* Chambers, John; Software for Data Analysis: Programming with R (More 
+  conceptual/theoretical)
+
+Specific aspects of R:
+
+* Wilke, Claus; Fundamentals of Data Visualization. https://serialmentor.com/dataviz/
+* Xie, Yihui; Dynamic documents with R and knitr. https://github.com/yihui/knitr-book
+* Murrell, Paul; R Graphics, 2nd ed. [https://www.stat.auckland.ac.nz/\~paul/RG2e](https://www.stat.auckland.ac.nz/\~paul/RG2e/)
+* Murrell, Paul; Introduction to Data Technologies. [https://www.stat.auckland.ac.nz/\~paul/ItDT/](https://www.stat.auckland.ac.nz/\~paul/ItDT/)
+* Wickham, Hadley; R Packages. http://r-pkgs.had.co.nz/ For building your own packages.

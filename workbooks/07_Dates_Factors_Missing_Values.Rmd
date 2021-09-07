@@ -1,0 +1,345 @@
+---
+title: '7) Dates, Factors and Missing Values'
+author: "Jasmine Hughes"
+date: "9/17/2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+
+```{r}
+library(dplyr)
+
+# Lets also load the gap data set:
+gap <- read.csv(
+  file.path("..", "data", "gapminder-FiveYearData.csv"), 
+  stringsAsFactors = FALSE
+)
+```
+
+# Overview
+
+So far we've been working with character data, numeric or integer data, and 
+logicals. There's a few other more complicated data types you'll often come 
+across in health/pharmaceutical data: factors and dates. Sometimes, you'll also 
+find you're missing a type of data altogether! Let's take a little break from 
+`dplyr` to learn more about these types of data.
+
+# Factors
+* A factor is a special data type in R used for categorical data. 
+* Categorical data is data where there a few different "types" of something, and 
+  the types are not particularly ordered.
+* Example: continent, blood type
+* In R, a factor has a defined number of "levels". Each level is associated with 
+  an integer value, and the level of each item in a vector is stored as the 
+  corresponding integer
+
+```{r factors}
+pre_factored <- c("cat", "dog", "cat")
+facts <- factor(pre_factored)
+pre_factored
+facts
+levels(facts)
+as.numeric(facts)
+```
+
+* R knows to treat factors differently from character strings.
+* Useful for statistics (ex: modeling GDP per capita as a function of time 
+  and continent)
+* Useful when you want to keep order consistent between graphs, tables
+* Older versions (<4.0) of R used to store character strings as factors. This
+  was usually unhelpful, and now stores this type of data as a character string.
+
+
+- What if we don't like the order these are in? Factor order is important for 
+  all kinds of things like plotting, analysis of variance, regression output, 
+  and more
+
+```{r pre_vs_post_factor}
+# Does this factor order reflect what you'd want it to be?
+factor(c("Pre-Intervention", "Post-Intervention"))
+```
+
+## Ordering Factor
+
+- Ordered factors simply have an additional attribute explaining the order of 
+  the levels of a factor
+- This is a useful shortcut when we want to preserve some of the meaning 
+  provided by the order
+
+```{r orderedfac, fig.cap = ""}
+pt_data <- data.frame(
+  MRN = rep(c(97, 107, 402),2),
+  measurement_time = c(rep("Pre-Intervention", 3), rep("Post-Intervention", 3)),
+  measurement_value = c(50, 65, 47, 104, 82, 91)
+)
+pt_data
+
+boxplot(measurement_value ~ measurement_time, data = pt_data)
+# Did the intervention increase or decrease the measurement value?
+
+pt_data$measurement_time <- factor(
+  pt_data$measurement_time, 
+  levels = c("Pre-Intervention", "Post-Intervention")
+)
+boxplot(measurement_value ~ measurement_time, data = pt_data)
+levels(pt_data$measurement_time)
+
+```
+
+
+## Reclassifying Factors
+- Turning factors into other data types can be tricky. All factors have an underlying numeric structure.
+
+```{r fac2}
+
+levels(pt_data$measurement_time)
+unclass(pt_data$measurement_time)
+as.numeric(pt_data$measurement_time)
+```
+
+- Hmmm, what happened?
+- The best way to convert a factor is to convert it to a character first.
+- This is a common source of bugs!
+
+```{r}
+fact3 <- factor(c(8, 10, 3))
+as.numeric(fact3)
+as.numeric(as.character(fact3))
+```
+
+
+# Dates
+
+R has built-in ways to handle dates (don't reinvent the wheel!) 
+
+```{r dates}
+date1 <- as.Date("03-01-2011", format = "%m-%d-%Y")
+date2 <- as.Date("03/02/11", format = "%m/%d/%y")
+date3 <- as.Date("07-May-11", format = "%d-%b-%y")
+date2
+```
+
+%Y: year with century. ex: 2020.
+%y: year without century. ex: 98 (1998)
+
+%m: month as a two-digit number. 03: March. 12: December.
+%d: day of the monnth as a decimal number. 05, 17, etc.
+
+```{r}
+?strptime
+```
+
+```{r}
+
+date1; date2
+class(date1)
+dates <- c(date1, date2, date3)
+weekdays(dates)
+dates + 30
+date3 - date2
+```
+The origin date in R is January 1, 1970:
+
+```{r}
+as.numeric(dates)
+date1 - as.Date("01-01-1970", format = "%m-%d-%Y")
+```
+March 1st 2011 was 15034 days after the origin date.
+
+The `Date` class only works with dates, and not times.
+
+# Datetimes
+
+For datetimes, there is the POSIX* classes, POSIXlt and POSIXct, which differ in how the data is stored.
+
+```{r}
+# strptime helps convert from character to datetime
+date.hour <- strptime("2018-03-17 04:34:12", format = "%Y-%m-%d %H:%M:%S")
+date <- c("31/10/2016")
+time <- c("13:31:33")
+day <- paste(date,"T", time) 
+class(day)
+
+#POSIXct stores data as number since origin
+dt1 <- as.POSIXct(day,format="%d/%m/%Y T %H:%M:%S",tz="Europe/Paris")
+dt1
+object.size(dt1)
+class(dt1)
+attributes(dt1)
+
+#POSIXlt stores data as a list
+dt2 <- as.POSIXlt(day,format="%d/%m/%Y T %H:%M:%S",tz="Europe/Paris")
+dt2
+object.size(dt2)
+class(dt2)
+attributes(dt2)
+dt2$year
+dt2$hour
+dt2$zone
+dt2$wday
+
+
+```
+
+Converting from date/time to hours after dose is pretty common in PK analysis...
+
+Use the function `difftime()`
+
+```{r datetime_pk}
+dose1t <- as.POSIXct("03/02/11 10:15:00", format = "%m/%d/%y %H:%M:%S")
+dose2t <- as.POSIXct("03/02/11 18:23:00", format = "%m/%d/%y %H:%M:%S")
+difftime(dose2t, dose1t, units = 'hours')
+
+# Or in dataframe calculations:
+patients <- data.frame(
+  ID = c(rep(1,3), rep(2,2)),
+  datetime = as.POSIXct(
+    c("03/02/11 10:15:00", "03/02/11 18:23:00","03/02/11 23:34:00",
+      "03/03/11 02:30:00", "03/03/11 13:24:00"
+    ),
+    format = "%m/%d/%y %H:%M:%S"
+  ),
+  EVID = c(1, 1, 0, 1, 0),
+  DV = c(0, 0, 10.8, 0, 16),
+  DOSE = c(100, 100, 0, 100, 0)
+) 
+head(patients)
+
+patients %>%
+  group_by(ID) %>%
+  mutate(dt = difftime(
+    datetime, 
+    min(datetime), 
+    units = 'hours'
+    )
+  ) %>%
+  mutate(TIME = as.numeric(dt)) %>%
+  select(ID, TIME, EVID, DV, DOSE)
+  
+```
+
+There's lots more packages/functionality for dates/times: 
+see  *lubridate* and `?DateTimeClasses`
+
+```{r adding_to_dates}
+infusion_length <- 3
+dose1t + lubridate::hours(infusion_length)
+```
+
+# Missing Values and other Data Oddities
+
+Since it was designed by statisticians, R handles missing values very well 
+relative to other languages.
+
+## Mathematically Strange Numbers
+
+* To infinity and beyond
+```{r}
+big <- 1e500 
+big
+big + 7
+```
+
+* `NaN` stands for Not a Number
+```{r}
+sqrt(-5)
+big - big
+big
+-1/0
+
+upper <- 60
+lower <- 50
+
+```
+
+## NA
+
+`NA` is a missing value, and it "holds a place" for where a number or observation should be. 
+
+```{r}
+vec <- rnorm(12)
+vec[c(3, 5)] <- NA
+vec
+length(vec)
+```
+
+Be careful because many R functions won't warn you that they are ignoring the 
+missing values.
+
+```{r}
+sum(vec)
+sum(vec, na.rm = TRUE)
+hist(vec)
+!is.na(vec)
+
+```
+
+## NULL
+
+`NULL` means that nothing is there,nor that anything should be expected to be there. If you assign an index NULL, you remove it completely. `NA` can hold a place but `NULL` cannot.
+```{r nulldata}
+c(1, 9, NA)
+c(1, 9, NULL)
+vec
+length(vec)
+a <- NULL
+a + 7
+```
+
+Often, you'll encounter `NULL` when trying to index into something incorrectly
+```{r }
+a[3, 4]
+is.null(a)
+is.na(a)
+```
+
+```{r} 
+nonnulls <- data.frame(
+  a = c(1:5),
+  b = letters[1:5]
+)
+nonnulls
+
+nonnulls$a <- NULL  
+nonnulls
+```
+
+`NULL` is useful for having a function argument default to 'nothing'.
+
+```{r}
+
+?t.test
+
+```
+
+# Breakout
+
+1. Create a character vector called `rainbows` containing the colors of a rainbow. Then, create a factor variable with the levels of the factor in the order of the colors of the rainbow ("red", "orange", "yellow", "green", "blue", "indigo", "violet"). Create a second factor variable with the levels of the factor in alphabetical order.
+
+```{r}
+chars <- c("red", "orange", "yellow", "green", "blue", "indigo", "violet")
+
+```
+2. Below are two different dates, provided as strings. Use either `as.Date` or an appropriate function from `{lubridate}` to convert them to an object of class Date. Which of them occured closest to 8 March 1994? 
+```{r}
+
+
+```
+
+3. Demonstrate, using the function `identical`, that setting a column in `test_data_frame` to NULL is the same as using `dplyr::select` to remove a column from a data frame.
+
+```{r}
+
+
+```
+4. Coerce the vector `my_numbers` to a numeric vector. Count how many NA's were introduced. (Hint: R interprets TRUE as having a value of 1 and FALSE as having a value of 0)
+
+```{r}
+my_numbers <- c('23', 'z', '37', '69', 'h', '18', '18', '19', '91', '4', '97', '83', '19', '51', '93', '20', '80', '37', '34', '93', '36', '55', 't', '48', '27', '54', '3', '89', '40', '73', '44', '52', '78', 's', '89', '84', '18', '59', '89', '14', '77', '52', '62', '92', 'o', '45', '1', '81', '3', '7', '24', '57', '50', '56', '95', '85', '100', '92', '98', '60', '18', '55', '2', '11', '8', '45', 'a', '6', '77', '9', '49', '66', '78', '18', '21', '36', 'i', '58', '45', '27', '13', '47', '54', '92', '86', '9', '94', '58', '62', 'k', '87', '34', '41', '58', '48', '12', '76', '31', '24', '20', '7', '40', '24', '98', '86', '51', '53', '29', '87', '20', '15', '97', '59', '20', '32', '61', '34', '92', '31', '36', '8', '49', '92', '9', '55', '10', '26', '100', '70', '77', '92', '18', '20', '10', '26', '4', '1', '5', '11', '99', '98', '2', '45', '24', '7', '98', '79', '64', '79', '15', '43', '20', '9', '58', '85', '66', '41', '16', '16', '94', '62', '21', '53', '43', '63', '4', '33', '97', '47', '73', '72', '38', '97', '71', '55', '66', '50', '91', '96', '21', '64', '70', '23', '8', '38', '27', '18', '9', '92', '43', '35', '23', '22', '17', '43', '42', '8', '42', '69', '7', '95', '54', '39', '24', '100', '61', '65', '16', '33', '48', '72', '94', '19', '68', '42', '52', '51', '83', '55', '21', '64', '29', '76', '56', '55', '55', '52', '42', '80', '94', '78', '46', '58', '33', '21', '30', '33', '60', '50', '22', '55', '27', '22', '65', '54', '31', '5', '10', '1', '21', '62', '90', '36', '38', '80', '100', '62', '75', '56', '29', '74', '44', '99', '45', '98', '16', '57', '11', '34', '35', '47', '95', '4', '36', '26', '74', '10', '44', '52', '85', '31', '4', '11', '62', '83', '27', '53', '7', '45', '43', '13', '9', '11', '7', '34', '87', '65', '19', '28', '17', '51', '1', '18', '19', '95', '52', '82', '53', '4', '5', '87', '27', '11', '69', '5', '6', '39', '52', '26', '1', '13', '98', '80', '66', '68', '11', '100', '57', '58', '64', '85', '49', '90', '12', '5', '47', '1', '99', '47', '65', '98', '88', '2', '64', '98', '57', '10', '64', '16', '79', '91', '91', '67', '58', '61', '49', '49', '56', '37', '61', '43', '20', '34', '76', '99', '67', '50', '32', '63', '82', '16', '94', '62', '27', '83', '77', '43', '41', '12', '57', '49', '55', '3', '81', '61', '39', '48', '23', '72', '95', '64', '49', '42', '81', '66', '30', '35', '80', '95', '45', '38', '34', '40', '4', '34', '34', '91', '80', '42', '26', '69', '100', '46', '6', '32', '99', '43', '66', '47', '20', '1', '67', '14', '77', '89', '19', '42', '3', '92', '34', '55', '98', '79', '74', '90', '6', '76', '84', '91', '90', '88', '53', '13', '75', '21', '96', '12', '38', '54', '7', '37', '57', '27', '89', '81', '31', '54', '21', '93', '60', '23', '96', '43', '48', '13', '30', '57', '9', '50', '29', '27', '60', '56', '53', '18', '71', '97', '44', '73', '93', '96', '34', '44', '19', '8', '62', '23', '68', '28', '13', '90', '40', '25', '45', '53', '86', '60', '100', '70', '17')
+
+```

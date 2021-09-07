@@ -1,0 +1,261 @@
+---
+title: 'Module 5: Basic Data Frame Operations'
+author: "Jasmine Hughes"
+date: "9/17/2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+# Overview
+
+> It is often said that 80% of data analysis is spent on the process of cleaning 
+and preparing the data. (Dasu and Johnson, 2003)
+
+Thus before you can even get to doing any sort of sophisticated analysis or 
+plotting, you'll generally first need to do some of the following tasks:
+
+1. ***Manipulating*** data frames, e.g., filtering, summarizing, and conducting 
+   calculations across groups.
+2. ***Tidying*** data into the appropriate format
+
+There are two competing schools of thought within the R community.
+
+* We should stick to the base R functions to do manipulating and tidying; 
+  `tidyverse` uses syntax that's unlike base R and is superfluous.
+* We should start teaching students to manipulate data using `tidyverse` tools 
+  because they are straightfoward to use, more readable than base R, and speed 
+  up the tidying process.
+
+I'll introduce you to the `tidyverse` tools. If your R tasks are data analysis, 
+graphing, modeling and statistics, you can accomplish most of what you need 
+using the tidyverse. Tidyverse also often has helpful error messages.
+
+My own view: I use both base R and tidyverse, but will prefer tidyverse if I 
+need to do more than ~3 operations on a dataset. The tidyverse is a major reason 
+why R is so popular for data analysis, and many people that mainly working in 
+python will sometimes switch to R just for data cleaning & graphing. 
+
+> The tidyverse is an opinionated collection of R packages designed for 
+data science. All packages share an underlying design philosophy, grammar, and 
+data structures. 
+
+# Data frame Manipulation using `dplyr`
+
+The [`dplyr`](https://cran.r-project.org/web/packages/dplyr/dplyr.pdf) package 
+provides a number of very useful functions for manipulating data frames. 
+Code written with `dplyr` is often easier to read than code written in "base R".
+
+We're going to learn how to subset data frames: how do we *filter* for the rows 
+we want? How do we *select* the columns we want?
+
+```{r}
+# If you haven't yet installed dplyr, install it now!
+# install.packages('dplyr')
+library(dplyr)
+
+# Lets also load the gap data set:
+gap <- read.csv(
+  file.path("..", "data", "gapminder-FiveYearData.csv"), 
+  stringsAsFactors = FALSE
+)
+
+head(gap)
+```
+
+## `dplyr::select`
+
+Imagine that we just received the gapminder dataset, but are only interested in 
+a few variables in it. We could use the `select()` function to keep only the 
+columns corresponding to variables we select.
+
+```{r}
+year_country_gdp_dplyr <- select(gap, year, country, gdpPercap)
+head(year_country_gdp_dplyr)
+```
+
+```{r}
+knitr::include_graphics(file.path("..", "img", "dplyr-fig1.png"), dpi = 400)
+```
+
+If we open up `year_country_gdp`, we'll see that it only contains the year, 
+country and gdpPercap.
+
+This is equivalent to the base R subsetting function that you may have noticed 
+before:
+
+```{r}
+year_country_gdp_base <- gap[,c("year", "country", "gdpPercap")]
+head(year_country_gdp_base)
+```
+
+We can even check that these two data frames are equivalent:
+
+```{r}
+# checking equivalence: TRUE indicates an exact match between these objects
+all.equal(year_country_gdp_dplyr, year_country_gdp_base)
+```
+
+Let's take a look at the help documentation for select:
+
+```{r}
+?select
+```
+
+The arguments for select are:
+
+* `.data` this is a data frame, and this is always the first argument for all 
+  tidyverse data frame manipulation functions/
+* `...` this is a place holder for any number of other arguments that can 
+  optionally be passed on. `select` is expecting the names (unquoted) of the 
+  columns you would like to keep or extract.
+
+
+## `dplyr::filter`
+
+Now let's say we're only interested in African countries. We can use `filter` 
+to select only the rows where `continent` is `Africa`.
+
+```{r}
+gap_africa <- filter(gap, continent == "Africa")
+head(gap_africa, 15)
+```
+
+`filter` works on *rows* while `select` works on *columns*
+
+`filter` expects a logical expression, and will *keep* all rows where that logical expression evaluates as `TRUE`.
+
+```{r}
+nrow(gap)                     # whole
+nrow(year_country_gdp_dplyr)  # select
+nrow(gap_africa)              # filter
+ncol(gap)                     # whole
+ncol(year_country_gdp_dplyr)  # select
+ncol(gap_africa)              # filter
+```
+
+# Combining dplyr operations
+
+What if we wanted only the country, year and gdp of African countries?
+
+```{r}
+gap_africa <- filter(gap, continent == "Africa")
+africa_country_year_gdp <- select(gap_africa, country, year, gdpPercap)
+
+head(africa_country_year_gdp)
+```
+
+That's not bad, but if we needed to do many different types of data 
+manipulations on one data frame, it can get confusing keeping track of all the 
+different "intermediate" data frames:
+
+# Piping with `dplyr`
+
+```{r}
+knitr::include_graphics(file.path("..", "img", "magrittr_hex.png"), dpi = 400)
+
+```
+Above, we used what's called "normal" grammar, but the strengths of `dplyr` lie 
+in combining several functions using *pipes*.
+
+Pipes take the input on the left side of the `%>%` symbol and pass it in as the 
+first argument to the function on the right side. This is why `dplyr` data 
+manipulation functions take `.data` as their first argument!
+
+coffee beans %>% 
+  harvest() %>% 
+  roast() %>% 
+  grind() %>% 
+  add("hot water") %>% 
+  filter() %>% 
+  drink().
+
+Since the pipe grammar is unlike anything we've seen in R before, let's 
+repeat what we've done above using pipes.
+
+```{r}
+africa_country_year_gdp_piped <- gap %>%
+  filter(continent == "Africa" & year == 1957) %>%
+  select(country, year, gdpPercap)
+head(africa_country_year_gdp_piped, 15)
+```
+
+
+First we summon the gapminder dataframe and pass it on to the next step using 
+the pipe symbol `%>%`
+
+The second steps is the `filter()` function. Then, we take that output and send 
+it to `select`.
+
+In this case we don't specify which data object we use in the call to 
+`select()` or to `filter()` since we've piped it in.
+
+```{r}
+identical(africa_country_year_gdp_piped, africa_country_year_gdp)
+```
+
+**Aside**: There is a good chance you have encountered pipes before in the 
+shell/terminal. In R, a pipe symbol is `%>%` while in the shell it is `|.` 
+But the concept is the same!
+
+# `dplyr::arrange`
+
+Often you may want to re-order data to quickly see what the smallest or largest 
+values of a column are. You can do this interactively using `View()`. dplyr also 
+has a function for doing this programmatically using `arrange`. 
+
+For example, let's reorder the rows of `gap` by population:
+
+```{r}
+gap %>%
+  arrange(pop) %>%
+  head()
+
+```
+By default, `arrange` orders from lowest to highest. We can use `desc` to order it in reverse.
+```{r}
+gap %>%
+  arrange(desc(pop)) %>%
+  head()
+
+```
+ `arrange` also allows specification of multiple columns:
+```{r}
+gap %>%
+  arrange(year, desc(pop)) %>%
+  head()
+```
+
+# Breakout
+
+### `dplyr`
+
+1. Use `dplyr` to create a data frame containing data from before 1975 with every column except `continent`.
+
+```{r}
+
+```
+
+2. How many countries had a life expectancy greater than 60 in the year 1982?
+
+```{r}
+
+
+```
+
+3. Use `dplyr` and `grepl()` to filter for countries with the letter "z" in their name.
+
+```{r}
+
+
+```
+
+4. Use `dplyr` to sort the gap data set in reverse alphabetical order.
+
+```{r}
+
+
+```

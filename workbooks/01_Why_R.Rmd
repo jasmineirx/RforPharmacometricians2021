@@ -1,0 +1,100 @@
+---
+title: "1) Why R?"
+author: "Jasmine Hughes"
+date: "9/17/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# What is R?
+
+*  R is **Open Source** and **free**!
+*  It is a full-featured programming language, in particular a scripting language. 
+   + This makes it similar in many ways to MATLAB and Python
+*  It can be run interactively or as a batch/background job
+*  It is designed by statisticians for statisticians - great at the same sort of tasks as STATA and SAS
+*  R is being actively developed with ongoing updates/new releases
+*  The community of R users make a bunch of tools available for tasks like:
+   + graphing
+   + advanced/specialized statistical models
+   + making websites
+   + writing books
+   + making LaTeX documents like this one!
+* Available for Windows, Mac OS X, and Linux
+
+## Why should I use R?
+
+* R is widely used (statisticians, scientists, social scientists) and has the widest statistical functionality of any software
+* R has tools for pharmacometrics! Examples: 
+  + `nlmixr`: nonlinear mixed effects modelling in R 
+  + `PKPDsim` ODE solver/concentration time curve simulations
+  + `mrgsolve` ODE solver/concentration time curve simulations 
+  + `vpc` visual predictive checks of NLMEM/NONMEM results
+  + `PKNCA` pharmacokinetic non-compartmental analysis
+  + And many, many more tools! Check out more here: https://cran.r-project.org/web/views/Pharmacokinetics.html
+* Users add functionality via packages all the time
+* R is free and available on all major platforms
+  + works well with other collaboration tools like git
+* R is very powerful, flexible, and easy to use
+* R allows for reproducibility and automating tasks
+* R can do essentially anything!
+  + For a particularly creative use, check out this repo: github.com/cutterkom/generativeart
+* Wide usage helps to improve quality and reduce bugs
+* Wide usage means there's a lot of tools available online for help
+
+## Why Should I Not Use R?
+
+* Other software is better than R at various tasks
+* The *exact* task you need to do was already solved by someone else in some other language.
+* R can be much slower than compiled languages (but is often quite fast with good coding practices!)
+* R's packages are only as good as the person who wrote them; no explicit quality control
+  + Validation tools to vet package quality exist! Check out: github.com/pharmaR/riskmetric
+* R is a sprawling and unstandardized ecosystem
+  + conventions can vary between packages
+  + over the last ~5 years, increased adoption of "tidy"/"tidyverse" conventions (more about this later!)
+
+## What are my other options? Get me out of here!
+
+* Python
+* Matlab/Octave
+* Julia (for pharmacometrics, see `pumas`)
+* C/C++
+* SAS
+* Stata
+
+# Administrative Info
+
+One day work shop! Today! 9am-5pm
+
+## Microcredit Program
+A microcredit in "R for data science" is available!
+
+*Requirements*:
+
+- Participate in the workshop (so far, great start!)
+- Complete the assignment
+- Email the assignment to Professor Krzyzanski; wk <AT> buffalo.edu
+
+## Course Format
+
+* Presentation of material, with example code
+* Please ask questions at any time!
+* Mini break-out sessions to try writing your own code
+
+## Course material
+
+* All course material is available on github!
+* The course material should also have been emailed to you ahead of time.
+* For questions, message me at: jasminehannahhughes AT gmail.com
+
+Take a moment now to open the course material in R Studio.
+
+
+# The Legal Stuff
+- This workshop includes material from a workshop prepared by Chris Paciorek with contributions from Kellie Ottoboni, Nima Hejazi, Rochelle Terman, Chris Krogslund, and Jarrod Millman; originally presented at UC Berkeley (D-Lab, Dept of Statistics).
+- Some of this material was drawn from [Jared Knowles R bootcamp](http://jaredknowles.com/r-bootcamp/url).
+- You are free to use, modify and redistribute any of this material with or without attribution. If you liked it and use parts of it in the future, please give a call out to the people above and to myself.
+

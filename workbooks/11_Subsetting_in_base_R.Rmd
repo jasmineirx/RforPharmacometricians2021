@@ -1,0 +1,339 @@
+---
+title: '11) Subsetting in base R'
+author: "Jasmine Hughes"
+date: "9/17/2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+
+```{r}
+library(dplyr)
+
+# Lets also load the gap data set:
+gap <- read.csv(
+  file.path("..", "data", "gapminder-FiveYearData.csv"), 
+  stringsAsFactors = FALSE
+)
+```
+
+# Introduction
+
+We've seen subsetting for vectors before:
+
+```{r}
+vec <- 1:10 * 2
+vec
+
+vec[1]       # first element
+vec[c(1, 3)] # first and third element
+vec[-1]      # everything but the first element
+
+```
+To subset a vector, you supply numbers corresponding to the indices you want 
+(or don't want). As we saw before, you can also subset a vector by providing a 
+vector of TRUE or FALSE corresponding to the indices you do/don't want. 
+
+```{r}
+vec[5] <- NA
+vec
+
+!is.na(vec)
+vec[!is.na(vec)]  
+```
+
+We can use the same sort of logic for subsetting data frames.
+
+This logic is *essential* for working with data frames in base R, but can be 
+avoided if you stay in the tidyverse ecosystem of functions. (Although, 
+sometimes the base R way is a little more straight forward, so it's useful to 
+know both.)
+
+# Selecting columns as vectors
+
+There are two ways to refer to one column in R, with a `$` or with the name of 
+the column as a *quoted* string in double square brackets.
+
+```{r}
+identical(gap$country, gap[["country"]])
+```
+
+If they are identical, why have two?
+
+The square brackets can be useful if you want to write functions or more generic 
+code, since you can supply it as a variable.
+
+```{r eval = FALSE}
+today_my_favorite_column_is <- "country"
+head(gap[[today_my_favorite_column_is]]) # works as expected
+head(gap$today_my_favorite_column_is)   
+# returns NULL since there is no column called "today_my_favorite_column_is"
+```
+
+The dollar sign one can be easier to work with due to R Studio's variable name 
+completion.
+
+Advice: 
+
+1. Use whichever works best for your task.
+2. Try to be consistent
+
+```{r}
+head(gap$gdpPercap * gap[["pop"]])
+```
+
+Both these ways of selecting columns work for only one column at a time, because they turn the data frame column into a vector. (Recall, vectors are several values of the same type in one object.) 
+
+```{r}
+class(gap)
+class(gap$pop)
+
+length(gap$pop)
+# gap[[c("pop", "gdpPercap")]]   #subscript out of bounds
+length(c(gap[["pop"]], gap[["gdpPercap"]]))   # concatenates the two together
+
+```
+
+# Selecting a column as a data frame
+
+What if you want to keep it as a data frame? 
+
+For this, use single square brackets (no `$` equivalent)
+
+```{r}
+dplyr::select(gap, pop)
+class(gap[["pop"]])
+class(gap["pop"])
+
+head(gap["pop"])
+```
+
+When selecting columns this way, we can request multiple columns at once:
+
+```{r}
+head(gap[c("pop", "gdpPercap")])
+```
+
+This works the same was as `dplyr::select`, except that the column names need 
+to be *quoted*
+
+```{r}
+identical(
+  gap[c("pop", "gdpPercap")],
+  select(gap, pop, gdpPercap)
+)
+```
+
+We can also indicate columns using numbers:
+
+```{r}
+gap[3]
+
+gap[c(3, 6)]
+
+```
+
+The tidyverse equivalent of `$` or double-bracket selection is `pull`:
+
+```{r}
+identical(
+  gap$pop,
+  gap %>% pull(pop)
+)
+
+?pull
+```
+
+We can also select using logicals:
+
+```{r}
+colnames(gap)
+has_an_o <- grepl("o", colnames(gap))
+has_an_o
+
+head( gap[has_an_o] ) 
+```
+
+# Selecting rows
+
+In `dplyr::filter()` we saw we could select rows using logical expressions. 
+
+We can do the same in base R!
+
+```{r}
+
+dplyr_1952 <- gap %>%
+  filter(year == 1952)
+
+base_1952 <- gap[gap$year == 1952, ]
+
+head(dplyr_1952)
+head(base_1952)
+
+```
+The syntax might look a little confusing, lets take a moment to look closer.
+
+```{r eval=FALSE}
+# square brackets for subsetting
+gap[ (which rows you want), (which columns you want)]
+
+```
+
+You can leave the column or row entry blank to select all the column/rows.
+
+You can select with logical expressions, or with numbers.
+
+```{r}
+gap[c(1, 3), ]
+gap[1, 1]
+gap[ , ]
+gap[c(19:21), has_an_o]
+```
+
+Selecting rows by number is actually something we haven't seen yet... 
+`dplyr::slice()`
+
+```{r}
+gap %>%
+  slice(c(19:21))
+```
+
+# Subsetting and Assignment
+
+In dplyr, we would use `mutate()`. In base R we can add a new column using 
+double bracket or dollar sign notation:
+
+```{r}
+gap1 <- gap
+gap2 <- gap
+
+
+# new column name <- vector of values
+gap1$gdp <- gap$pop * gap$gdpPercap
+gap2[["gdp"]] <- gap[["pop"]] * gap[["gdpPercap"]]
+
+
+gap3 <- gap %>%
+  # new column name = vector of values
+  mutate(gdp = pop * gdpPercap)
+
+identical(gap1, gap2)
+identical(gap2, gap3)
+```
+
+What if we only wanted to change some of the values in a column? Use a logical 
+vector to indicate which rows you want to change.
+
+```{r}
+gap1$continent[gap1$country == "Canada"] <- "Europe"
+
+filter(gap1, country == "Canada")
+filter(gap1, country == "Mexico")
+```
+
+Note that when assigning values, your replacement either needed to be:
+
+1) a vector of length 1 (like above), in which case every row indicated will 
+   receive the value
+2) a vector of length N where N is the number of rows/values you are replacing/
+
+```{r eval=FALSE}
+gap1$lifeExp[gap1$lifeExp > 50] <- round(gap1$lifeExp) # produces a warning
+
+length(gap1$lifeExp[gap1$lifeExp > 50])
+length(round(gap1$lifeExp))
+
+gap1 
+```
+R "tries its best" and will start filling with the first value in the vector you supplied and keep going until it runs out of rows to replace. It will loop through the replacement vector again until it's done.
+```{r eval}
+gap2$lifeExp[gap2$lifeExp > 50] <- round(gap2$lifeExp[gap2$lifeExp > 50])
+
+gap2
+```
+
+# Lists
+
+Lists are another data type! They tend to not fit well into "tidy" data and
+dplyr/tidyr functions. But they're very useful if you need to store multiple 
+data types in one object.
+
+```{r}
+myList <- list(a = 7, b = 5)
+myList
+```
+
+```{r}
+myList$c <- myList
+myList
+
+myList$d <- list(
+  new_field = list(
+    new_field2 = list(
+      f = c(1:5), 
+      e = c("help", "this got confusing"), 
+      g = c(TRUE, FALSE, NA)
+    )
+  )
+)
+myList
+```
+Lists allow for mixing data types in one object (not allowed by vectors) without 
+the constraints of equal numbers of vectors imposed by data frames. 
+
+If you're using R to automate the types of analysis/graphing you do in Excel or 
+similar programs, you probably won't encounter lists often...
+
+But they can be very useful and powerful in certain applications. 
+
+(They can also be a little unwieldy...)
+
+Most of the other subsetting rules we've seen apply for lists too.
+
+```{r}
+myList$a
+
+myList[["d"]]
+
+myList[["d"]]$new_field[["new_field2"]]
+myList[[c("d", "new_field", "new_field2")]] # surprised?
+```
+
+In fact... data frames are lists of columns:
+
+```{r}
+is.list(myList)
+is.list(gap)
+```
+
+# Breakout 
+
+1) Extract the 5th row from the gapminder dataset.
+
+```{r}
+
+       
+```
+
+2) Extract the last row from the gapminder dataset.
+
+```{r}
+
+```
+
+3) Count the number of gdpPercap values greater than 50000 in the gapminder dataset using base R.
+
+```{r}
+
+
+```
+
+4) Set all of the gdpPercap values greater than 50000 to NA using base R. You should probably first copy the `gap` object and work on the copy so that the dataset is unchanged (or just read the data into R again afterwards to get a clean copy).
+
+```{r}
+
+```
