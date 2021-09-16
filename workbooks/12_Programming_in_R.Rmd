@@ -367,6 +367,8 @@ starwars %>%
 It also allows one to specify default values so that the user doesn't have to 
 explicitly provide all the arguments.
 
+Let's say we wanted to allow both height in inches and height in cm!
+
 ```{r, fun-args}
 calculate_bmi2 <- function(height, weight_in_kg, height_unit = "cm"){
   if (!height_unit %in% c("cm", "m")) {
@@ -395,12 +397,19 @@ provide.
 ```{r, usedots, fig.cap = ""}
 bilirubin_labs <- c(1.0, 1.5, 2.0, NA, 1.8, 0.2, 0.3, 0.7, NA)
 
-mean_above_thresh <- function(vec, thresh, ...){
+mean_above_thresh1 <- function(vec, thresh){
   vec <- vec[vec > thresh]
-  return(mean(vec, ...))
+  mean(vec)
 }
+
+mean_above_thresh2 <- function(vec, thresh, ...){
+  vec <- vec[vec > thresh]
+  mean(vec, ...)
+}
+mean_above_thresh1(vec = bilirubin_labs, thresh = 1.2)
 ?mean
-mean_above_thresh(vec = bilirubin_labs, thresh = 1.2, na.rm = T)
+mean_above_thresh2(vec = bilirubin_labs, thresh = 1.2, na.rm = TRUE)
+mean_above_thresh2(vec = bilirubin_labs, thresh = 1.2, na.rm = FALSE)
 ```
 
 
